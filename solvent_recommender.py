@@ -10,11 +10,14 @@ from io import BytesIO
 st.set_page_config(page_title="Solvent System Recommender", layout="wide")
 st.title("🔬 Solvent System Recommender")
 
-# Debug function
-def debug_data(data, name):
-    if st.checkbox(f"Show debug info for {name}"):
-        st.write(f"Columns: {data.columns.tolist()}")
-        st.write(f"First rows: {data.head().to_dict()}")
+# Debug flag (moved outside cached functions)
+debug_mode = st.checkbox("Enable debug mode")
+
+# Debug function (modified to not use widgets)
+def show_debug_data(data, name):
+    if debug_mode:
+        st.write(f"Debug - {name} columns: {data.columns.tolist()}")
+        st.write(f"Debug - {name} first rows:", data.head())
 
 # Load data functions
 @st.cache_data
@@ -22,14 +25,17 @@ def load_data():
     try:
         # Load KDDB data
         kddb = pd.read_excel("KDDB.xlsx", sheet_name=None)
-        debug_data(pd.concat(kddb.values()), "KDDB")
+        if debug_mode:
+            show_debug_data(pd.concat(kddb.values()), "KDDB")
         
         # Load solvent system data
         dbdq = pd.read_excel("DBDQ.xlsx", sheet_name=None)
-        debug_data(pd.concat(dbdq.values()), "DBDQ")
+        if debug_mode:
+            show_debug_data(pd.concat(dbdq.values()), "DBDQ")
         
         dbdt = pd.read_excel("DBDT.xlsx", sheet_name=None)
-        debug_data(pd.concat(dbdt.values()), "DBDT")
+        if debug_mode:
+            show_debug_data(pd.concat(dbdt.values()), "DBDT")
         
         return kddb, dbdq, dbdt
     except Exception as e:
@@ -115,7 +121,8 @@ def prepare_training_data(kddb, dbdq, dbdt):
                 
                 data.append(record)
             except Exception as e:
-                st.warning(f"Skipping row due to error: {str(e)}")
+                if debug_mode:
+                    st.warning(f"Skipping row due to error: {str(e)}")
                 continue
     
     return pd.DataFrame(data)
@@ -195,7 +202,8 @@ def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
                         "Predicted Log KD": f"{log_kd:.2f}"
                     })
             except Exception as e:
-                st.warning(f"Skipping prediction for {system_name}-{solvent_row['Number']}: {str(e)}")
+                if debug_mode:
+                    st.warning(f"Skipping prediction for {system_name}-{solvent_row['Number']}: {str(e)}")
                 continue
     
     return results
@@ -207,7 +215,8 @@ def main():
     """)
     
     # Load data
-    kddb, dbdq, dbdt = load_data()
+    with st.spinner("Loading data..."):
+        kddb, dbdq, dbdt = load_data()
     
     if kddb is None or dbdq is None or dbdt is None:
         st.error("Failed to load data files. Please check the files exist and are valid Excel files.")
@@ -216,7 +225,8 @@ def main():
     # Prepare training data
     with st.spinner("Preparing training data..."):
         training_data = prepare_training_data(kddb, dbdq, dbdt)
-        debug_data(training_data, "Training Data")
+        if debug_mode:
+            show_debug_data(training_data, "Training Data")
     
     if training_data.empty:
         st.error("No valid training data could be prepared. Possible issues:")
