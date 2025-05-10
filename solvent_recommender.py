@@ -262,7 +262,7 @@ def main():
             return
 
         # Afficher la structure moléculaire
-             mol = Chem.MolFromSmiles(smiles)
+            mol = Chem.MolFromSmiles(smiles)
         if mol:
             st.subheader("Structure moléculaire")
             img = Draw.MolToImage(mol, size=(300, 300))
