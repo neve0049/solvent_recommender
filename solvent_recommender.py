@@ -129,10 +129,10 @@ def train_model(df):
         'RotatableBonds', 'AromaticRings', 'HeavyAtoms'
     ]
 
-    solvent_features = [col for col in df.columns 
+    solvent_features = [col for col in df.s 
                         if any(col.startswith(prefix) for prefix in ['%Vol', '%Mol', '%Mas'])]
     feature_cols.extend(solvent_features)
-    feature_cols = [col for col in feature_cols if col in df.columns]
+    feature_cols = [col for col in feature_cols if col in df.s]
 
     X = df[feature_cols]
     y = df['Log_KD']
@@ -231,7 +231,7 @@ def main():
         if mol:
             st.subheader("Molecular Structure")
             img = Draw.MolToImage(mol, size=(300, 300))
-            st.image(img, caption="Structure of the molecule", use_column_width=False)
+            st.image(img, caption="Structure of the molecule", use_container_width=False)
         else:
             st.warning("Unable to parse the SMILES into a valid molecule.")
 
