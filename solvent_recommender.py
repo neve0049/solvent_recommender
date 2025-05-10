@@ -264,7 +264,7 @@ def main():
         mol = Chem.MolFromSmiles(smiles)
         if mol:
             st.subheader("Structure moléculaire")
-            img = Draw.MolToImage(mol, size=(50, 50))
+            img = Draw.MolToImage(mol, size=(400, 400))
             buf = BytesIO()
             img.save(buf, format="PNG")
             st.image(buf.getvalue(), use_container_width=True)
