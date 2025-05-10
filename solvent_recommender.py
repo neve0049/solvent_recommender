@@ -267,7 +267,7 @@ def main():
             img = Draw.MolToImage(mol, size=(400, 400))
             buf = BytesIO()
             img.save(buf, format="PNG")
-            st.image(buf.getvalue(), width=200, height=200)
+            st.image(buf.getvalue(), width=200)
 
         # Faire les prédictions
         with st.spinner("Prédiction des systèmes de solvants..."):
