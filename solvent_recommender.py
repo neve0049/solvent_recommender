@@ -58,12 +58,9 @@ def extract_features(smiles):
             'TPSA': Descriptors.TPSA(mol),
             'RotatableBonds': Lipinski.NumRotatableBonds(mol),
             'AromaticRings': Lipinski.NumAromaticRings(mol),
-            'HeavyAtoms': Lipinski.HeavyAtomCount(mol),
-            'NumRings': Descriptors.NumRings(mol),  # Added feature
-            'NumHeteroatoms': Descriptors.NumHeteroatoms(mol)  # Added feature
+            'HeavyAtoms': Lipinski.HeavyAtomCount(mol)
         }
-    except Exception as e:
-        st.error(f"Error processing SMILES: {smiles}. {str(e)}")
+    except:
         return None
 
 def prepare_training_data(kddb, dbdq, dbdt):
@@ -264,8 +261,7 @@ def main():
             st.error("Chaîne SMILES invalide. Veuillez entrer une chaîne SMILES valide.")
             return
 
-        # Afficher la structure moléculaire
-            mol = Chem.MolFromSmiles(smiles)
+        mol = Chem.MolFromSmiles(smiles)
         if mol:
             st.subheader("Structure moléculaire")
             img = Draw.MolToImage(mol, size=(300, 300))
@@ -282,8 +278,9 @@ def main():
             df_results = pd.DataFrame(results)
             st.dataframe(df_results.sort_values("Predicted Log KD", key=lambda x: abs(x.astype(float)), ascending=True), use_container_width=True)
         else:
-            st.warning("Aucun système de solvant trouvé pour cette molécule.")
+            st.warning("Aucun système de solvants prédit avec un log KD entre -1 et 1.")
 
-# Run the app
+# Exécuter l'application
 if __name__ == "__main__":
     main()
+
