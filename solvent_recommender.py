@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from rdkit import Chem
-from rdkit.Chem import Descriptors, Lipinski, Draw
-from rdkit.Chem.Draw import MolDraw2DSVG
+from rdkit.Chem import Descriptors, Lipinski
 import numpy as np
 from io import BytesIO
 
@@ -19,25 +18,6 @@ def show_debug_data(data, name):
     if debug_mode:
         st.write(f"Debug - {name} columns: {data.columns.tolist()}")
         st.write(f"Debug - {name} first rows:", data.head())
-
-# New function to draw molecule from SMILES
-def display_molecule(smiles):
-    """Display molecular structure from SMILES"""
-    try:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            return False
-        
-        # Generate image
-        img = Draw.MolToImage(mol, size=(300, 200))
-        
-        # Display in Streamlit
-        st.image(img, caption="Molecular Structure", use_column_width=False)
-        return True
-    except Exception as e:
-        if debug_mode:
-            st.warning(f"Error drawing molecule: {str(e)}")
-        return False
 
 # Load data functions
 @st.cache_data
@@ -265,51 +245,40 @@ def main():
     
     # Get user input
     st.subheader("Molecule Input")
+    smiles = st.text_input("Enter SMILES string", value="C1=CC(=CC=C1/C=C/C2=CC(=CC(=C2)O)O)O")
     
-    # Create columns for layout
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        smiles = st.text_input("Enter SMILES string", value="C1=CC(=CC=C1/C=C/C2=CC(=CC(=C2)O)O)O")
+    if st.button("Find Suitable Solvent Systems"):
+        if not smiles:
+            st.warning("Please enter a SMILES string")
+            return
+            
+        # Calculate molecular features
+        with st.spinner("Calculating molecular features..."):
+            features = extract_features(smiles)
         
-        if st.button("Find Suitable Solvent Systems"):
-            if not smiles:
-                st.warning("Please enter a SMILES string")
-                return
-                
-            # Calculate molecular features
-            with st.spinner("Calculating molecular features..."):
-                features = extract_features(smiles)
+        if features is None:
+            st.error("Invalid SMILES string. Please enter a valid SMILES.")
+            return
             
-            if features is None:
-                st.error("Invalid SMILES string. Please enter a valid SMILES.")
-                return
-                
-            # Predict for all systems
-            with st.spinner("Searching for suitable solvent systems..."):
-                results = predict_for_systems(model, features, feature_cols, dbdq, dbdt)
+        # Predict for all systems
+        with st.spinner("Searching for suitable solvent systems..."):
+            results = predict_for_systems(model, features, feature_cols, dbdq, dbdt)
+        
+        if results:
+            st.success(f"Found {len(results)} suitable solvent systems")
+            df_results = pd.DataFrame(results)
+            st.dataframe(df_results, hide_index=True)
             
-            if results:
-                st.success(f"Found {len(results)} suitable solvent systems")
-                df_results = pd.DataFrame(results)
-                st.dataframe(df_results, hide_index=True)
-                
-                # Download button
-                csv = df_results.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download Results",
-                    data=csv,
-                    file_name="solvent_recommendations.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.warning("No solvent systems found with log KD between -1 and 1")
-    
-    with col2:
-        if smiles:
-            st.markdown("**Molecular Structure**")
-            if not display_molecule(smiles) and debug_mode:
-                st.warning("Could not render molecule. The SMILES might be invalid or too complex.")
+            # Download button
+            csv = df_results.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download Results",
+                data=csv,
+                file_name="solvent_recommendations.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("No solvent systems found with log KD between -1 and 1")
 
 if __name__ == "__main__":
     main()
