@@ -143,7 +143,7 @@ def train_model(df):
     
     # Automatically detect ALL solvent composition features
     solvent_features = [col for col in df.columns 
-                       if any(col.startswith(p) for p in ['%Vol_', '%Mol_', '%Mas_']]
+                       if any(col.startswith(p) for p in ['%Vol_', '%Mol_', '%Mas_'])]
     
     # Combine all features
     feature_cols = base_features + solvent_features
