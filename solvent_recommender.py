@@ -14,261 +14,288 @@ st.set_page_config(page_title="Solvent System Recommender", layout="wide")
 st.title("🔬 Solvent System Recommender")
 
 # Debug flag
-debug_mode = st.checkbox("Enable debug mode", value=True)  # Forcé à True pour le débogage
+debug_mode = st.checkbox("Enable debug mode", value=True)
 
-def load_and_validate_data():
+def load_data():
     try:
         kddb = pd.read_excel("KDDB.xlsx", sheet_name=None)
         dbdq = pd.read_excel("DBDQ.xlsx", sheet_name=None)
         dbdt = pd.read_excel("DBDT.xlsx", sheet_name=None)
-        
-        # Validation des données critiques
-        for name, data in [('KDDB', kddb), ('DBDQ', dbdq), ('DBDT', dbdt)]:
-            if not all(isinstance(sheet, pd.DataFrame) for sheet in data.values()):
-                st.error(f"{name} contient des feuilles invalides")
-                return None, None, None
-                
         return kddb, dbdq, dbdt
     except Exception as e:
-        st.error(f"Erreur de chargement: {str(e)}")
+        st.error(f"Error loading files: {str(e)}")
         return None, None, None
 
-def prepare_features(row, solvent_data):
-    """Crée un dictionnaire de caractéristiques complet"""
-    features = {
-        'MolWeight': Descriptors.MolWt(Chem.MolFromSmiles(row['SMILES'])),
-        'LogP': Descriptors.MolLogP(Chem.MolFromSmiles(row['SMILES'])),
-        'HBD': Lipinski.NumHDonors(Chem.MolFromSmiles(row['SMILES'])),
-        'HBA': Lipinski.NumHAcceptors(Chem.MolFromSmiles(row['SMILES'])),
-        'TPSA': Descriptors.TPSA(Chem.MolFromSmiles(row['SMILES'])),
-        'RotatableBonds': Lipinski.NumRotatableBonds(Chem.MolFromSmiles(row['SMILES'])),
-        'AromaticRings': Lipinski.NumAromaticRings(Chem.MolFromSmiles(row['SMILES'])),
-        'HeavyAtoms': Lipinski.HeavyAtomCount(Chem.MolFromSmiles(row['SMILES'])),
-        'Log_KD': float(row['Log KD'])
-    }
-    
-    # Ajout des caractéristiques de composition avec vérification rigoureuse
-    composition_features = {}
-    for i in range(1, 5):  # Pour 4 solvants max
-        for prefix in ['%Vol', '%Mol', '%Mas']:
-            col = f"{prefix}{i} - UP"
-            if col in solvent_data:
-                try:
-                    composition_features[f"{prefix}{i}"] = float(solvent_data[col])
-                except:
-                    composition_features[f"{prefix}{i}"] = 0.0
-    
-    return {**features, **composition_features}
+def extract_features(smiles):
+    try:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            return None
+        return {
+            'MolWeight': Descriptors.MolWt(mol),
+            'LogP': Descriptors.MolLogP(mol),
+            'HBD': Lipinski.NumHDonors(mol),
+            'HBA': Lipinski.NumHAcceptors(mol),
+            'TPSA': Descriptors.TPSA(mol),
+            'RotatableBonds': Lipinski.NumRotatableBonds(mol),
+            'AromaticRings': Lipinski.NumAromaticRings(mol),
+            'HeavyAtoms': Lipinski.HeavyAtomCount(mol)
+        }
+    except:
+        return None
 
-def train_and_validate_model(X, y):
-    """Entraîne le modèle avec validation croisée"""
+def prepare_training_data(kddb, dbdq, dbdt):
+    data = []
+    
+    for sheet_name, sheet_data in kddb.items():
+        for _, row in sheet_data.iterrows():
+            try:
+                if pd.isna(row['SMILES']) or pd.isna(row['Log KD']) or pd.isna(row['System']):
+                    continue
+                    
+                features = extract_features(row['SMILES'])
+                if features is None:
+                    continue
+                    
+                system_name = row['System']
+                composition = str(row['Composition']).strip()
+                
+                # Find matching solvent data
+                solvent_data = None
+                for db in [dbdq, dbdt]:
+                    if system_name in db:
+                        system_df = db[system_name]
+                        match = system_df[system_df['Composition'].astype(str) == composition]
+                        if not match.empty:
+                            solvent_data = match.iloc[0].to_dict()
+                            break
+                
+                if not solvent_data:
+                    continue
+                    
+                # Create base record
+                record = {
+                    **features,
+                    'Log_KD': float(row['Log KD'])
+                }
+                
+                # Add ALL possible composition features (critical fix)
+                for i in range(1, 5):  # For 4 solvents max
+                    for prefix in ['%Vol', '%Mol', '%Mas']:
+                        col = f"{prefix}{i} - UP"
+                        norm_col = f"{prefix}{i}"
+                        record[norm_col] = float(solvent_data.get(col, 0.0))
+                
+                data.append(record)
+                
+            except Exception as e:
+                if debug_mode:
+                    st.warning(f"Error processing row: {str(e)}")
+                continue
+    
+    df = pd.DataFrame(data)
+    
+    if debug_mode and not df.empty:
+        st.write("Training data summary:")
+        st.write(f"Total samples: {len(df)}")
+        st.write("Log KD distribution:", df['Log_KD'].describe())
+        
+        # Check composition features
+        comp_features = [c for c in df.columns if any(c.startswith(p) for p in ['%Vol', '%Mol', '%Mas'])]
+        if comp_features:
+            st.write("Composition features stats:", df[comp_features].describe())
+    
+    return df
+
+def train_model(df):
+    if df.empty:
+        st.error("No training data available!")
+        return None, None, None
+        
+    # Prepare features
+    base_features = [
+        'MolWeight', 'LogP', 'HBD', 'HBA', 'TPSA',
+        'RotatableBonds', 'AromaticRings', 'HeavyAtoms'
+    ]
+    
+    # Get ALL composition features that exist in data
+    solvent_features = [col for col in df.columns 
+                       if any(col.startswith(p) for p in ['%Vol', '%Mol', '%Mas'])]
+    
+    feature_cols = base_features + solvent_features
+    
+    X = df[feature_cols]
+    y = df['Log_KD']
+    
+    # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
     
+    # Optimized model
     model = RandomForestRegressor(
         n_estimators=500,
         max_depth=25,
-        min_samples_split=4,
-        max_features='sqrt',
+        min_samples_split=3,
+        max_features=0.8,
         random_state=42,
         n_jobs=-1
     )
-    
     model.fit(X_train, y_train)
     
-    # Validation approfondie
-    train_pred = model.predict(X_train)
-    test_pred = model.predict(X_test)
-    
-    metrics = {
-        'train_r2': model.score(X_train, y_train),
-        'test_r2': model.score(X_test, y_test),
-        'train_rmse': np.sqrt(mean_squared_error(y_train, train_pred)),
-        'test_rmse': np.sqrt(mean_squared_error(y_test, test_pred))
-    }
+    # Evaluate
+    train_score = model.score(X_train, y_train)
+    test_score = model.score(X_test, y_test)
+    rmse = np.sqrt(mean_squared_error(y_test, model.predict(X_test)))
     
     if debug_mode:
-        st.write("🔍 Validation du modèle:")
-        st.write(f"R² (train): {metrics['train_r2']:.3f} | R² (test): {metrics['test_r2']:.3f}")
-        st.write(f"RMSE (train): {metrics['train_rmse']:.3f} | RMSE (test): {metrics['test_rmse']:.3f}")
+        st.write("Model performance:")
+        st.write(f"Train R²: {train_score:.3f}, Test R²: {test_score:.3f}, RMSE: {rmse:.3f}")
         
-        # Analyse des prédictions
-        pred_analysis = pd.DataFrame({
-            'Actual': y_test,
-            'Predicted': test_pred,
-            'Difference': np.abs(y_test - test_pred)
-        })
-        st.write("Échantillon des prédictions:", pred_analysis.head(10))
-        
-        # Importance des caractéristiques
+        # Feature importances
         importances = pd.DataFrame({
-            'Feature': X.columns,
+            'Feature': feature_cols,
             'Importance': model.feature_importances_
         }).sort_values('Importance', ascending=False)
         
-        st.write("Top 10 caractéristiques importantes:", importances.head(10))
+        st.write("Top 10 features:", importances.head(10))
     
-    return model, metrics
+    return model, feature_cols, rmse
+
+def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
+    results = []
+    
+    for system_name, system_data in {**dbdq, **dbdt}.items():
+        for _, solvent_row in system_data.iterrows():
+            try:
+                input_features = features.copy()
+                
+                # Add ALL composition features (with default 0 for missing)
+                for i in range(1, 5):
+                    for prefix in ['%Vol', '%Mol', '%Mas']:
+                        col = f"{prefix}{i} - UP"
+                        norm_col = f"{prefix}{i}"
+                        input_features[norm_col] = float(solvent_row.get(col, 0.0))
+                
+                # Create input dataframe with consistent columns
+                input_df = pd.DataFrame([input_features])
+                
+                # Ensure all expected columns exist
+                missing_cols = set(feature_cols) - set(input_df.columns)
+                for col in missing_cols:
+                    input_df[col] = 0.0
+                
+                input_df = input_df[feature_cols]
+                
+                # Predict
+                log_kd = model.predict(input_df)[0]
+                
+                if debug_mode:
+                    st.write(f"System: {system_name}-{solvent_row['Composition']}")
+                    st.write("Sample features:", input_df.iloc[0][feature_cols[:5]].to_dict())
+                    st.write(f"Predicted Log KD: {log_kd:.3f}")
+                
+                if -1 <= log_kd <= 1:
+                    # Get composition details
+                    composition = []
+                    solvents = []
+                    for i in range(1, 5):
+                        vol_col = f"%Vol{i} - UP"
+                        name_col = f"Solvent {i}"
+                        if vol_col in solvent_row:
+                            composition.append(f"{float(solvent_row[vol_col]):.1f}%")
+                        if name_col in solvent_row:
+                            solvents.append(str(solvent_row[name_col]))
+                    
+                    results.append({
+                        "System": system_name,
+                        "Solvents": " / ".join(solvents),
+                        "Composition": " / ".join(composition),
+                        "Predicted Log KD": f"{log_kd:.2f}"
+                    })
+                    
+            except Exception as e:
+                if debug_mode:
+                    st.warning(f"Skipping {system_name}-{solvent_row['Composition']}: {str(e)}")
+                continue
+    
+    return results
 
 def main():
     st.markdown("""
-    ## Système de Recommandation de Solvants
-    Entrez un SMILES pour obtenir des recommandations avec un log KD prédit entre -1 et 1.
+    ## Solvent System Recommender
+    Enter a SMILES string to get solvent system recommendations.
     """)
     
-    # Chargement des données
-    with st.spinner("Chargement et validation des données..."):
-        kddb, dbdq, dbdt = load_and_validate_data()
-        if None in (kddb, dbdq, dbdt):
-            return
-        
-        # Préparation des données
-        data = []
-        for sheet_name, sheet_data in kddb.items():
-            for _, row in sheet_data.iterrows():
-                try:
-                    if pd.isna(row['SMILES']) or pd.isna(row['Log KD']) or pd.isna(row['System']):
-                        continue
-                        
-                    # Recherche des données de solvant correspondantes
-                    solvent_data = None
-                    for db in [dbdq, dbdt]:
-                        if row['System'] in db:
-                            match = db[row['System']][db[row['System']]['Composition'].astype(str) == str(row['Composition'])]
-                            if not match.empty:
-                                solvent_data = match.iloc[0].to_dict()
-                                break
-                    
-                    if solvent_data:
-                        features = prepare_features(row, solvent_data)
-                        data.append(features)
-                except Exception as e:
-                    if debug_mode:
-                        st.warning(f"Erreur ligne {_}: {str(e)}")
-        
-        df = pd.DataFrame(data)
-        
-        if debug_mode:
-            st.write("📊 Statistiques des données:")
-            st.write(f"Nombre total d'échantillons: {len(df)}")
-            st.write("Distribution du Log KD:", df['Log_KD'].describe())
-            
-            # Vérification des valeurs de composition
-            comp_features = [c for c in df.columns if any(c.startswith(p) for p in ['%Vol', '%Mol', '%Mas'])]
-            if comp_features:
-                st.write("Valeurs de composition:", df[comp_features].describe())
-
-        if df.empty:
-            st.error("Aucune donnée valide n'a pu être préparée.")
-            return
-        
-        # Entraînement du modèle
-        X = df.drop(['Log_KD'], axis=1)
-        y = df['Log_KD']
-        
-        model, metrics = train_and_validate_model(X, y)
-        
-        if metrics['test_r2'] < 0.3:
-            st.error("Le modèle n'a pas appris correctement (R² trop faible)")
-            return
-
-    # Interface utilisateur
-    smiles = st.text_input("SMILES", value="C1=CC(=CC=C1/C=C/C2=CC(=CC(=C2)O)O)O")
+    # Load data
+    with st.spinner("Loading data..."):
+        kddb, dbdq, dbdt = load_data()
     
-    if st.button("Recommander des systèmes"):
+    if None in (kddb, dbdq, dbdt):
+        return
+    
+    # Prepare training data
+    with st.spinner("Preparing training data..."):
+        training_data = prepare_training_data(kddb, dbdq, dbdt)
+    
+    if training_data.empty:
+        st.error("No valid training data could be prepared.")
+        return
+    
+    # Train model
+    with st.spinner("Training model..."):
+        model, feature_cols, rmse = train_model(training_data)
+    
+    if model is None:
+        st.error("Model training failed.")
+        return
+    
+    # User input
+    st.subheader("Molecule Input")
+    smiles = st.text_input("Enter SMILES string", value="C1=CC(=CC=C1/C=C/C2=CC(=CC(=C2)O)O)O")
+    
+    if st.button("Find Suitable Solvent Systems"):
         if not smiles:
-            st.warning("Veuillez entrer un SMILES valide")
+            st.warning("Please enter a SMILES string")
             return
             
-        try:
-            # Calcul des caractéristiques moléculaires
-            mol = Chem.MolFromSmiles(smiles)
-            if not mol:
-                st.error("SMILES invalide")
-                return
-                
-            features = {
-                'MolWeight': Descriptors.MolWt(mol),
-                'LogP': Descriptors.MolLogP(mol),
-                'HBD': Lipinski.NumHDonors(mol),
-                'HBA': Lipinski.NumHAcceptors(mol),
-                'TPSA': Descriptors.TPSA(mol),
-                'RotatableBonds': Lipinski.NumRotatableBonds(mol),
-                'AromaticRings': Lipinski.NumAromaticRings(mol),
-                'HeavyAtoms': Lipinski.HeavyAtomCount(mol)
-            }
-            
-            # Affichage de la structure
-            st.subheader("Structure Moléculaire")
+        with st.spinner("Calculating molecular features..."):
+            features = extract_features(smiles)
+        
+        if features is None:
+            st.error("Invalid SMILES string")
+            return
+
+        # Display molecule
+        mol = Chem.MolFromSmiles(smiles)
+        if mol:
+            st.subheader("Molecular Structure")
             img = Draw.MolToImage(mol, size=(400, 400))
             st.image(img, width=300)
+
+        # Make predictions
+        with st.spinner("Analyzing solvent systems..."):
+            results = predict_for_systems(model, features, feature_cols, dbdq, dbdt)
+
+        if results:
+            st.subheader("🔍 Recommended Systems")
+            df_results = pd.DataFrame(results)
             
-            # Prédictions pour tous les systèmes
-            results = []
-            for system_name, system_data in {**dbdq, **dbdt}.items():
-                for _, solvent_row in system_data.iterrows():
-                    try:
-                        # Préparation des caractéristiques de composition
-                        input_features = features.copy()
-                        for i in range(1, 5):
-                            for prefix in ['%Vol', '%Mol', '%Mas']:
-                                col = f"{prefix}{i} - UP"
-                                if col in solvent_row:
-                                    input_features[f"{prefix}{i}"] = float(solvent_row[col]) if not pd.isna(solvent_row[col]) else 0.0
-                        
-                        # Création du DataFrame d'entrée
-                        input_df = pd.DataFrame([input_features])[X.columns]
-                        
-                        # Prédiction
-                        log_kd = model.predict(input_df)[0]
-                        
-                        if debug_mode:
-                            st.write(f"Système: {system_name}-{solvent_row['Composition']}, KD prédit: {log_kd:.3f}")
-                        
-                        if -1 <= log_kd <= 1:
-                            # Formatage des résultats
-                            solvents = []
-                            composition = []
-                            for i in range(1, 5):
-                                name_col = f"Solvent {i}"
-                                vol_col = f"%Vol{i} - UP"
-                                if name_col in solvent_row:
-                                    solvents.append(str(solvent_row[name_col]))
-                                if vol_col in solvent_row:
-                                    composition.append(f"{float(solvent_row[vol_col]):.1f}%")
-                            
-                            results.append({
-                                'Système': system_name,
-                                'Solvants': " / ".join(solvents),
-                                'Composition': " / ".join(composition),
-                                'Log_KD_prédit': f"{log_kd:.2f}"
-                            })
-                            
-                    except Exception as e:
-                        if debug_mode:
-                            st.warning(f"Erreur sur {system_name}-{solvent_row['Composition']}: {str(e)}")
+            # Sort by proximity to 0
+            df_results['KD_abs'] = df_results['Predicted Log KD'].astype(float).abs()
+            df_results = df_results.sort_values('KD_abs')
             
-            if results:
-                df_results = pd.DataFrame(results)
-                df_results['KD_abs'] = df_results['Log_KD_prédit'].astype(float).abs()
-                df_results = df_results.sort_values('KD_abs')
-                
-                st.subheader("🎯 Systèmes Recommandés")
-                st.dataframe(
-                    df_results.drop('KD_abs', axis=1),
-                    column_config={
-                        "Log_KD_prédit": st.column_config.NumberColumn(
-                            format="%.2f",
-                            help="Valeur prédite du log KD (idéal entre -1 et 1)"
-                        )
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.warning("Aucun système ne satisfait -1 ≤ log KD ≤ 1")
-                
-        except Exception as e:
-            st.error(f"Erreur: {str(e)}")
+            st.dataframe(
+                df_results.drop('KD_abs', axis=1),
+                column_config={
+                    "Predicted Log KD": st.column_config.NumberColumn(
+                        format="%.2f",
+                        help="Predicted log KD value (ideal between -1 and 1)"
+                    )
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.warning("No systems found with -1 ≤ log KD ≤ 1")
 
 if __name__ == "__main__":
     main()
