@@ -83,7 +83,7 @@ def prepare_training_data(kddb, dbdq, dbdt):
                 system_name = row['System']
                 composition = row['Composition']
                 
-                # Handle different composition types (A, 1, etc.)
+                # Handle different composition types
                 if isinstance(composition, str):
                     composition = composition.strip()
                 else:
@@ -95,7 +95,6 @@ def prepare_training_data(kddb, dbdq, dbdt):
                 for db in [dbdq, dbdt]:
                     if system_name in db:
                         solvent_sheet = db[system_name]
-                        # Try to match composition (as string to handle 'A', 'B' etc.)
                         solvent_row = solvent_sheet[solvent_sheet['Composition'].astype(str) == str(composition)]
                         if not solvent_row.empty:
                             solvent_data = solvent_row.iloc[0].to_dict()
@@ -188,18 +187,27 @@ def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
                 # Predict
                 log_kd = model.predict(input_df[feature_cols])[0]
                 
+                if debug_mode:
+                    st.write(f"System: {system_name}, Composition: {solvent_row['Composition']}, Predicted Log KD: {log_kd:.2f}")
+                
                 if -1 <= log_kd <= 1:
                     # Get composition details
                     composition = []
-                    for i in range(1, 5):  # Try up to 4 solvents
-                        col = f'%Vol{i} - UP'
-                        if col in solvent_row and not pd.isna(solvent_row[col]):
-                            composition.append(f"{float(solvent_row[col]):.3f}")
+                    for i in range(1, 5):
+                        vol_col = f'%Vol{i} - UP'
+                        if vol_col in solvent_row and not pd.isna(solvent_row[vol_col]):
+                            composition.append(f"{solvent_row[vol_col]:.3f}")
                     
-                    # Ensure all values are strings to avoid mixed types
+                    solvent_names = []
+                    for i in range(1, 5):
+                        name_col = f'Solvent {i}'
+                        if name_col in solvent_row and not pd.isna(solvent_row[name_col]):
+                            solvent_names.append(str(solvent_row[name_col]))
+                    
                     results.append({
                         "System": str(system_name),
                         "Composition": " / ".join(composition),
+                        "Solvents": " / ".join(solvent_names),
                         "Composition Number": str(solvent_row['Composition']),
                         "Predicted Log KD": f"{log_kd:.2f}"
                     })
@@ -277,13 +285,22 @@ def main():
         if results:
             st.subheader("🔍 Systèmes de solvants prédits")
             df_results = pd.DataFrame(results)
-            # Ensure all columns are string type to avoid Arrow conversion issues
+            
+            # Convert all columns to string to avoid Arrow issues
             for col in df_results.columns:
                 df_results[col] = df_results[col].astype(str)
-            st.dataframe(df_results.sort_values("Predicted Log KD", key=lambda x: abs(x.astype(float)), ascending=True), use_container_width=True)
+            
+            # Sort by proximity to 0 (best log KD)
+            df_results['Abs Log KD'] = df_results['Predicted Log KD'].astype(float).abs()
+            df_results = df_results.sort_values('Abs Log KD').drop('Abs Log KD', axis=1)
+            
+            st.dataframe(df_results, use_container_width=True)
+            
+            if debug_mode:
+                st.write("Debug - Top predictions details:")
+                st.write(df_results.head())
         else:
             st.warning("Aucun système de solvants prédit avec un log KD entre -1 et 1.")
 
-# Exécuter l'application
 if __name__ == "__main__":
     main()
