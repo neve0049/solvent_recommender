@@ -240,7 +240,14 @@ def main():
         if results:
             st.subheader("🔍 Systèmes de solvants prédits")
             df_results = pd.DataFrame(results)
-            st.dataframe(df_results.sort_values("Predicted Log KD", key=lambda x: abs(x.astype(float)), ascending=True), use_container_width=True)
+
+            # ✅ Correction pour compatibilité avec pyarrow / streamlit
+            df_results = df_results.astype({col: str for col in df_results.columns if df_results[col].dtype == 'object'})
+
+            st.dataframe(
+                df_results.sort_values("Predicted Log KD", key=lambda x: abs(x.astype(float)), ascending=True),
+                use_container_width=True
+            )
         else:
             st.warning("Aucun système de solvants prédit avec un log KD entre -1 et 1.")
 
