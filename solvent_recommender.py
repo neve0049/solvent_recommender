@@ -124,7 +124,7 @@ def prepare_training_data(kddb, dbdq, dbdt):
         st.write("Log KD distribution:", df['Log_KD'].describe())
         
         # Show composition features
-        comp_features = [c for c in df.columns if any(c.startswith(p) for p in ['%Vol', '%Mol', '%Mas']]
+        comp_features = [c for c in df.columns if any(c.startswith(p) for p in ['%Vol', '%Mol', '%Mas'])]
         if comp_features:
             st.write("Sample composition features:", df[comp_features[:3] + ['Log_KD']].head())
     
