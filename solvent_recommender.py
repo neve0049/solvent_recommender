@@ -196,10 +196,11 @@ def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
                         if col in solvent_row and not pd.isna(solvent_row[col]):
                             composition.append(f"{float(solvent_row[col]):.3f}")
                     
+                    # Ensure all values are strings to avoid mixed types
                     results.append({
-                        "System": system_name,
+                        "System": str(system_name),
                         "Composition": " / ".join(composition),
-                        "Composition": str(solvent_row['Composition']),
+                        "Composition Number": str(solvent_row['Composition']),
                         "Predicted Log KD": f"{log_kd:.2f}"
                     })
             except Exception as e:
@@ -276,6 +277,9 @@ def main():
         if results:
             st.subheader("🔍 Systèmes de solvants prédits")
             df_results = pd.DataFrame(results)
+            # Ensure all columns are string type to avoid Arrow conversion issues
+            for col in df_results.columns:
+                df_results[col] = df_results[col].astype(str)
             st.dataframe(df_results.sort_values("Predicted Log KD", key=lambda x: abs(x.astype(float)), ascending=True), use_container_width=True)
         else:
             st.warning("Aucun système de solvants prédit avec un log KD entre -1 et 1.")
