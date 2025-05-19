@@ -71,6 +71,8 @@ def prepare_training_data(kddb, dbdq, dbdt):
                             break
                 
                 if not solvent_data:
+                    if debug_mode:
+                        st.warning(f"No solvent data found for {system_name}-{composition}")
                     continue
                     
                 # Create base record
@@ -79,7 +81,7 @@ def prepare_training_data(kddb, dbdq, dbdt):
                     'Log_KD': float(row['Log KD'])
                 }
                 
-                # Add ALL possible composition features (critical fix)
+                # Add ALL possible composition features
                 for i in range(1, 5):  # For 4 solvents max
                     for prefix in ['%Vol', '%Mol', '%Mas']:
                         col = f"{prefix}{i} - UP"
@@ -100,6 +102,10 @@ def prepare_training_data(kddb, dbdq, dbdt):
         st.write(f"Total samples: {len(df)}")
         st.write("Log KD distribution:", df['Log_KD'].describe())
         
+        # Check for constant values
+        st.write("Features with zero variance:")
+        st.write(df.loc[:, df.nunique() == 1].columns.tolist())
+        
         # Check composition features
         comp_features = [c for c in df.columns if any(c.startswith(p) for p in ['%Vol', '%Mol', '%Mas'])]
         if comp_features:
@@ -112,20 +118,32 @@ def train_model(df):
         st.error("No training data available!")
         return None, None, None
         
-    # Prepare features
+    # Prepare features - exclude constant features
     base_features = [
         'MolWeight', 'LogP', 'HBD', 'HBA', 'TPSA',
         'RotatableBonds', 'AromaticRings', 'HeavyAtoms'
     ]
     
-    # Get ALL composition features that exist in data
+    # Get ALL composition features that vary
     solvent_features = [col for col in df.columns 
-                       if any(col.startswith(p) for p in ['%Vol', '%Mol', '%Mas'])]
+                       if any(col.startswith(p) for p in ['%Vol', '%Mol', '%Mas'])
+                       and df[col].nunique() > 1]  # Only keep varying features
+    
+    if not solvent_features:
+        st.error("No varying solvent composition features found!")
+        return None, None, None
     
     feature_cols = base_features + solvent_features
     
     X = df[feature_cols]
     y = df['Log_KD']
+    
+    # Verify data variability
+    if debug_mode:
+        st.write("Features being used:", feature_cols)
+        st.write("X sample:", X.head())
+        st.write("y sample:", y.head())
+        st.write("Feature variances:", X.var())
     
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
@@ -133,9 +151,9 @@ def train_model(df):
     # Optimized model
     model = RandomForestRegressor(
         n_estimators=500,
-        max_depth=25,
-        min_samples_split=3,
-        max_features=0.8,
+        max_depth=30,  # Increased depth
+        min_samples_split=2,  # More flexible
+        max_features='auto',
         random_state=42,
         n_jobs=-1
     )
@@ -156,7 +174,11 @@ def train_model(df):
             'Importance': model.feature_importances_
         }).sort_values('Importance', ascending=False)
         
-        st.write("Top 10 features:", importances.head(10))
+        st.write("Top features:", importances)
+        
+        # Check predictions distribution
+        preds = model.predict(X)
+        st.write("Predictions distribution:", pd.Series(preds).describe())
     
     return model, feature_cols, rmse
 
@@ -168,14 +190,14 @@ def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
             try:
                 input_features = features.copy()
                 
-                # Add ALL composition features (with default 0 for missing)
+                # Add ALL composition features
                 for i in range(1, 5):
                     for prefix in ['%Vol', '%Mol', '%Mas']:
                         col = f"{prefix}{i} - UP"
                         norm_col = f"{prefix}{i}"
                         input_features[norm_col] = float(solvent_row.get(col, 0.0))
                 
-                # Create input dataframe with consistent columns
+                # Create input dataframe
                 input_df = pd.DataFrame([input_features])
                 
                 # Ensure all expected columns exist
@@ -190,7 +212,7 @@ def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
                 
                 if debug_mode:
                     st.write(f"System: {system_name}-{solvent_row['Composition']}")
-                    st.write("Sample features:", input_df.iloc[0][feature_cols[:5]].to_dict())
+                    st.write("Input features:", input_df.iloc[0][feature_cols[:5]].to_dict())
                     st.write(f"Predicted Log KD: {log_kd:.3f}")
                 
                 if -1 <= log_kd <= 1:
@@ -245,7 +267,7 @@ def main():
         model, feature_cols, rmse = train_model(training_data)
     
     if model is None:
-        st.error("Model training failed.")
+        st.error("Model training failed. Check debug output.")
         return
     
     # User input
