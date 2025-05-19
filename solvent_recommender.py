@@ -150,9 +150,23 @@ def train_model(df):
     X = df[feature_cols]
     y = df['Log_KD']
     
-    # Train model
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    if debug_mode:
+        st.write("Debug - Features being used:", feature_cols)
+        st.write("Debug - Sample X values:", X.head())
+        st.write("Debug - Sample y values:", y.head())
+    
+    # Train model with more trees and depth
+    model = RandomForestRegressor(
+        n_estimators=200,
+        max_depth=20,
+        min_samples_split=5,
+        random_state=42
+    )
     model.fit(X, y)
+    
+    if debug_mode:
+        st.write("Debug - Model feature importances:")
+        st.write(dict(zip(feature_cols, model.feature_importances_)))
     
     return model, feature_cols
 
@@ -184,23 +198,26 @@ def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
                     if col not in input_df:
                         input_df[col] = 0.0
                 
+                # Reorder columns to match training data
+                input_df = input_df[feature_cols]
+                
                 # Predict
-                log_kd = model.predict(input_df[feature_cols])[0]
+                log_kd = model.predict(input_df)[0]
                 
                 if debug_mode:
                     st.write(f"System: {system_name}, Composition: {solvent_row['Composition']}, Predicted Log KD: {log_kd:.2f}")
+                    st.write("Input features:", input_df.iloc[0].to_dict())
                 
                 if -1 <= log_kd <= 1:
                     # Get composition details
                     composition = []
-                    for i in range(1, 5):
-                        vol_col = f'%Vol{i} - UP'
-                        if vol_col in solvent_row and not pd.isna(solvent_row[vol_col]):
-                            composition.append(f"{solvent_row[vol_col]:.3f}")
-                    
                     solvent_names = []
                     for i in range(1, 5):
+                        vol_col = f'%Vol{i} - UP'
                         name_col = f'Solvent {i}'
+                        
+                        if vol_col in solvent_row and not pd.isna(solvent_row[vol_col]):
+                            composition.append(f"{solvent_row[vol_col]:.1f}%")
                         if name_col in solvent_row and not pd.isna(solvent_row[name_col]):
                             solvent_names.append(str(solvent_row[name_col]))
                     
@@ -208,7 +225,7 @@ def predict_for_systems(model, features, feature_cols, dbdq, dbdt):
                         "System": str(system_name),
                         "Composition": " / ".join(composition),
                         "Solvents": " / ".join(solvent_names),
-                        "Composition Number": str(solvent_row['Composition']),
+                        "Composition ID": str(solvent_row['Composition']),
                         "Predicted Log KD": f"{log_kd:.2f}"
                     })
             except Exception as e:
@@ -237,6 +254,9 @@ def main():
         training_data = prepare_training_data(kddb, dbdq, dbdt)
         if debug_mode:
             show_debug_data(training_data, "Training Data")
+            if not training_data.empty:
+                st.write("Debug - Log KD value distribution:")
+                st.write(training_data['Log_KD'].describe())
     
     if training_data.empty:
         st.error("Aucune donnée d'entraînement valide n'a pu être préparée. Problèmes possibles :")
@@ -286,21 +306,33 @@ def main():
             st.subheader("🔍 Systèmes de solvants prédits")
             df_results = pd.DataFrame(results)
             
-            # Convert all columns to string to avoid Arrow issues
-            for col in df_results.columns:
-                df_results[col] = df_results[col].astype(str)
+            # Convert KD to numeric for sorting
+            df_results['KD_value'] = df_results['Predicted Log KD'].astype(float)
             
-            # Sort by proximity to 0 (best log KD)
-            df_results['Abs Log KD'] = df_results['Predicted Log KD'].astype(float).abs()
-            df_results = df_results.sort_values('Abs Log KD').drop('Abs Log KD', axis=1)
+            # Sort by absolute value closest to 0 (best KD)
+            df_results['Abs_KD'] = df_results['KD_value'].abs()
+            df_results = df_results.sort_values('Abs_KD')
             
-            st.dataframe(df_results, use_container_width=True)
+            # Format final display
+            display_cols = ["System", "Solvents", "Composition", "Predicted Log KD"]
+            st.dataframe(
+                df_results[display_cols],
+                column_config={
+                    "Predicted Log KD": st.column_config.NumberColumn(
+                        format="%.2f",
+                        help="Valeur prédite du log KD (idéalement entre -1 et 1)"
+                    )
+                },
+                use_container_width=True
+            )
             
             if debug_mode:
-                st.write("Debug - Top predictions details:")
-                st.write(df_results.head())
+                st.write("Debug - Full prediction results:", df_results)
         else:
             st.warning("Aucun système de solvants prédit avec un log KD entre -1 et 1.")
+            if debug_mode:
+                st.write("Debug - Features used for prediction:", features)
+                st.write("Debug - Feature columns expected by model:", feature_cols)
 
 if __name__ == "__main__":
     main()
