@@ -27,7 +27,11 @@ use_cached_data = st.sidebar.checkbox("Use cached data", value=True)
 def load_and_preprocess_data(use_cache=True):
     """Load and preprocess data with caching option."""
     if use_cache and os.path.exists(DATA_CACHE_PATH):
-        return joblib.load(DATA_CACHE_PATH)
+        cached_data = joblib.load(DATA_CACHE_PATH)
+        # Handle both old (2 items) and new (3 items) cache formats
+        if len(cached_data) == 2:
+            return (*cached_data, {})  # Add empty solvent_names if missing
+        return cached_data
     
     try:
         # Load all data files
@@ -131,7 +135,7 @@ def load_and_preprocess_data(use_cache=True):
                         st.warning(f"Error processing row: {str(e)}")
                     continue
     
-        df = pd.DataFrame(data)
+        df = pd.DataFrame(data) if data else pd.DataFrame()
         
         # Cache the processed data
         joblib.dump((df, system_compositions, solvent_names), DATA_CACHE_PATH)
@@ -140,7 +144,7 @@ def load_and_preprocess_data(use_cache=True):
         
     except Exception as e:
         st.error(f"Error loading files: {str(e)}")
-        return None, None, None
+        return pd.DataFrame(), {}, {}
 
 def train_model(data):
     """Train and evaluate the Random Forest model."""
@@ -194,8 +198,9 @@ def get_composition_data(system_name, composition):
                 match = system_data[system_data['Composition'].astype(str) == str(composition)]
                 if not match.empty:
                     return match.iloc[0]
-    except:
-        pass
+    except Exception as e:
+        if debug_mode:
+            st.warning(f"Error loading composition data: {str(e)}")
     return None
 
 def main():
@@ -203,8 +208,13 @@ def main():
     with st.spinner("Loading and preprocessing data..."):
         training_data, system_compositions, solvent_names = load_and_preprocess_data(use_cached_data)
         
-        if training_data is None or system_compositions is None:
-            st.error("Failed to load data. Please check the input files.")
+        if debug_mode:
+            st.write(f"Loaded {len(training_data)} training samples")
+            st.write(f"Found {len(system_compositions)} solvent systems")
+            st.write("Sample systems:", list(system_compositions.keys())[:3])
+        
+        if training_data.empty:
+            st.error("No valid training data found!")
             return
     
     # Check data quality
@@ -217,8 +227,12 @@ def main():
     
     # Train or load model
     if os.path.exists(MODEL_PATH) and st.sidebar.checkbox("Use cached model", value=True):
-        model = joblib.load(MODEL_PATH)
-        st.sidebar.success("Loaded pre-trained model")
+        try:
+            model = joblib.load(MODEL_PATH)
+            st.sidebar.success("Loaded pre-trained model")
+        except Exception as e:
+            st.error(f"Error loading model: {str(e)}")
+            return
     else:
         with st.spinner("Training model..."):
             model, mse, r2 = train_model(training_data)
@@ -311,7 +325,11 @@ def main():
     else:
         for i, solvent in enumerate(solvents, 1):
             perc = composition_data.get(f'%Vol{i} - UP', 0)
-            st.write(f"- {solvent}: {float(perc):.1f}%")
+            try:
+                perc_value = float(perc)
+                st.write(f"- {solvent}: {perc_value:.1f}%")
+            except:
+                st.write(f"- {solvent}: Percentage not available")
     
     # Prediction
     st.header("3. Prediction")
@@ -333,17 +351,17 @@ def main():
                     input_features[f"{prefix}{i}"] = 0.0
         
         # Create DataFrame with correct column order
-        input_df = pd.DataFrame(columns=model.feature_names_in_)
-        for feat in model.feature_names_in_:
-            input_df[feat] = [input_features.get(feat, 0)]
-        
-        # Debug
-        if debug_mode:
-            st.write("Input features:", input_features)
-            st.write("Input DataFrame:", input_df)
-        
-        # Make prediction
         try:
+            input_df = pd.DataFrame(columns=model.feature_names_in_)
+            for feat in model.feature_names_in_:
+                input_df[feat] = [input_features.get(feat, 0)]
+            
+            # Debug
+            if debug_mode:
+                st.write("Input features:", input_features)
+                st.write("Input DataFrame:", input_df)
+            
+            # Make prediction
             prediction = model.predict(input_df)[0]
             st.success(f"Predicted Log KD: {prediction:.2f}")
             
