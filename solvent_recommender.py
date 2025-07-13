@@ -73,7 +73,7 @@ def get_file_download_link(file_data, filename, text):
 # Module Paramètres de Solubilité de Hansen
 # ==============================================
 if modules[selected_module] == "hansen":
-    st.header("🧪 Paramètres de Solubilité de Hansen 3D")
+    st.header("🧪 Hansen Solubility Parameters")
     
     with st.expander("ℹ️ Instructions"):
         st.write("""
