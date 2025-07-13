@@ -14,12 +14,24 @@ import joblib
 import os
 
 # Configuration
-st.set_page_config(page_title="🔬 Solvent System Recommender", layout="wide", page_icon="🔬")
-st.title("🔬 Solvent System Recommender")
+st.set_page_config(page_title="🔬 Solvent System Recommender Pro", layout="wide", page_icon="🔬")
+st.title("🔬 Solvent System Recommender Pro")
 
 # Constants
 MODEL_PATH = "solvent_model.pkl"
 DATA_CACHE_PATH = "processed_data_cache.pkl"
+
+# Solvent database (should be loaded from your actual data)
+SOLVENT_DB = {
+    'Water': {'SMILES': 'O', 'Type': 'Polar'},
+    'Methanol': {'SMILES': 'CO', 'Type': 'Polar'},
+    'Ethanol': {'SMILES': 'CCO', 'Type': 'Polar'},
+    'Acetonitrile': {'SMILES': 'CC#N', 'Type': 'Polar aprotic'},
+    'Chloroform': {'SMILES': 'ClC(Cl)Cl', 'Type': 'Non-polar'},
+    'Hexane': {'SMILES': 'CCCCCC', 'Type': 'Non-polar'},
+    'Acetone': {'SMILES': 'CC(=O)C', 'Type': 'Polar aprotic'},
+    'Ethyl acetate': {'SMILES': 'CCOC(=O)C', 'Type': 'Polar aprotic'}
+}
 
 # Debug flag
 debug_mode = st.sidebar.checkbox("Enable debug mode", value=False)
@@ -226,6 +238,10 @@ def visualize_molecule(smiles):
     else:
         st.warning("Invalid SMILES string - cannot display molecule")
 
+def get_solvent_properties(solvent_name):
+    """Return properties for a given solvent name."""
+    return SOLVENT_DB.get(solvent_name, {'SMILES': '', 'Type': 'Unknown'})
+
 def main():
     st.sidebar.header("Settings")
     
@@ -254,7 +270,7 @@ def main():
             st.sidebar.success(f"Model trained (R²: {r2:.3f}, MSE: {mse:.3f})")
     
     # Main interface
-    st.header("Molecule Input")
+    st.header("1. Molecule Input")
     smiles = st.text_input("Enter SMILES string:", "CCO")
     
     if smiles:
@@ -270,32 +286,60 @@ def main():
                 # Create input for prediction
                 input_df = pd.DataFrame([features])
                 
-                # Add composition features with default values
-                for col in comp_features:
-                    input_df[col] = 0.0  # Will be replaced by user input
+                # Solvent selection interface
+                st.header("2. Solvent Selection")
                 
-                # Display editable composition
-                st.header("Solvent Composition")
-                cols = st.columns(3)
+                # Create 4 columns for up to 4 solvents
+                cols = st.columns(4)
+                selected_solvents = []
+                solvent_percentages = {}
                 
-                composition = {}
-                for i, prefix in enumerate(['%Vol', '%Mol', '%Mas']):
+                for i in range(4):
                     with cols[i]:
-                        st.subheader(prefix)
-                        for j in range(1, 5):
-                            key = f"{prefix}{j}"
-                            if key in comp_features:
-                                composition[key] = st.slider(
-                                    f"Solvent {j}", 
-                                    min_value=0.0, 
-                                    max_value=100.0,
-                                    value=25.0 if j == 1 else 0.0,
-                                    key=key
-                                )
+                        # Solvent selection
+                        solvent_name = st.selectbox(
+                            f"Solvent {i+1}",
+                            options=list(SOLVENT_DB.keys()),
+                            index=i if i < 2 else 0,  # Pre-select first two
+                            key=f"solv_{i}"
+                        )
+                        selected_solvents.append(solvent_name)
+                        
+                        # Percentage selection
+                        if i > 0:  # Don't show for first solvent (will auto-calculate)
+                            perc_type = st.radio(
+                                f"Percentage type for {solvent_name}",
+                                ['%Vol', '%Mol', '%Mas'],
+                                key=f"perc_type_{i}"
+                            )
+                            percentage = st.slider(
+                                f"Percentage {solvent_name}",
+                                min_value=0.0,
+                                max_value=100.0,
+                                value=0.0 if i > 0 else 100.0,
+                                key=f"percentage_{i}"
+                            )
+                            solvent_percentages[f"{perc_type}{i+1}"] = percentage
                 
-                # Update input with user composition
-                for key, value in composition.items():
-                    input_df[key] = value
+                # Auto-balance first solvent percentage
+                if len(selected_solvents) > 1:
+                    total_perc = sum(solvent_percentages.values())
+                    if total_perc < 100:
+                        solvent_percentages['%Vol1'] = 100 - total_perc
+                    st.info(f"Automatic adjustment: {selected_solvents[0]} at {solvent_percentages.get('%Vol1', 100):.1f}%")
+                
+                # Add composition features
+                for col in comp_features:
+                    input_df[col] = solvent_percentages.get(col, 0.0)
+                
+                # Display selected system
+                st.header("3. Selected Solvent System")
+                system_desc = " + ".join([
+                    f"{solvent_percentages.get(f'%Vol{i+1}', 100 if i==0 else 0):.1f}% {solv}"
+                    for i, solv in enumerate(selected_solvents) 
+                    if solvent_percentages.get(f'%Vol{i+1}', 100 if i==0 else 0) > 0
+                ])
+                st.write(system_desc)
                 
                 # Make prediction
                 if st.button("Predict Log KD"):
