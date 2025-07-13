@@ -48,13 +48,13 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Titre de l'application
-st.title("📊 Quaterco - Plateforme d'Analyze Scientifique")
+st.title("📊 Quaterco - Tool for HSP and COSMO-RS data plotting")
 
 # Navigation entre les modules
 modules = {
-    "Paramètres de Solubilité de Hansen": "hansen",
-    "Diagramme de Phase Ternaire": "ternary",
-    "Diagramme de Phase Quaternaire": "quaternary"
+    "Hansen Solubility Parameters": "hansen",
+    "Ternary Plot Diagram": "ternary",
+    "Quaternary Plot Diagram": "quaternary"
 }
 
 selected_module = st.sidebar.radio(
@@ -77,9 +77,8 @@ if modules[selected_module] == "hansen":
     
     with st.expander("ℹ️ Instructions"):
         st.write("""
-        1. Téléversez un fichier Excel avec les colonnes: δD, δP, δH, Type, Compounds, CAS, R0
-        2. Explorez la visualisation 3D interactive
-        3. Utilisez les outils pour analyser les composés
+        Upload the excel file containing your data. The file must contain the following columns:
+        δD, δP, δH, Compounds, Type (by default the color are 0 = Red = petro-sourced or unsafe compound, 1 = Green = bio-sourced compound, 2 = Blue = simulated HSP from COSMOQuick or other prediction software), CAS, R0.
         """)
     
     uploaded_file = st.file_uploader("Téléversez votre fichier Excel", type=["xlsx"])
