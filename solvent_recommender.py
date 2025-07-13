@@ -255,7 +255,7 @@ if modules[selected_module] == "hansen":
 # ==============================================
 elif modules[selected_module] == "ternary":
     st.header("📐 Diagramme de Phase Ternaire Interactif")
-    
+
     with st.expander("ℹ️ Instructions"):
         st.write("""
         1. Téléversez un fichier Excel avec les colonnes: V1, V2, V1', V2'
@@ -319,30 +319,44 @@ elif modules[selected_module] == "ternary":
                         'showlegend': False
                     }))
                 
-                # Mise en forme
-                axis_title_size = 14
-                fig.update_layout({
-                    'ternary': {
-                        'sum': 1,
-                        'aaxis': {
-                            'title': {'text': data.iloc[0, 7] if len(data.columns) > 7 else 'A', 'font': {'size': axis_title_size}},
-                            'min': 0.01, 'linewidth': 2, 'ticks': 'outside',
-                            'tickvals': np.arange(0, 1.1, 0.1), 'tickformat': '.0%',
-                            'gridcolor': 'lightgray', 'minorgridcount': 4
-                        },
-                        'baxis': {
-                            'title': {'text': data.iloc[0, 8] if len(data.columns) > 8 else 'B', 'font': {'size': axis_title_size}},
-                            'min': 0.01, 'linewidth': 2, 'ticks': 'outside',
-                            'tickvals': np.arange(0, 1.1, 0.1), 'tickformat': '.0%',
-                            'gridcolor': 'lightgray', 'minorgridcount': 4
-                        },
-                        'caxis': {
-                            'title': {'text': data.iloc[0, 9] if len(data.columns) > 9 else 'C', 'font': {'size': axis_title_size}},
-                            'min': 0.01, 'linewidth': 2, 'ticks': 'outside',
-                            'tickvals': np.arange(0, 1.1, 0.1), 'tickformat': '.0%',
-                            'gridcolor': 'lightgray', 'minorgridcount': 4
-                        }
+                # Configuration des axes avec propriétés valides
+                axis_config = {
+                    'sum': 1,
+                    'aaxis': {
+                        'title': {'text': data.iloc[0, 7] if len(data.columns) > 7 else 'A', 'font': {'size': 14}},
+                        'min': 0.01, 
+                        'linewidth': 2, 
+                        'ticks': 'outside',
+                        'tickvals': np.arange(0, 1.1, 0.1), 
+                        'tickformat': '.0%',
+                        'gridcolor': 'lightgray',
+                        'showgrid': True
                     },
+                    'baxis': {
+                        'title': {'text': data.iloc[0, 8] if len(data.columns) > 8 else 'B', 'font': {'size': 14}},
+                        'min': 0.01, 
+                        'linewidth': 2, 
+                        'ticks': 'outside',
+                        'tickvals': np.arange(0, 1.1, 0.1), 
+                        'tickformat': '.0%',
+                        'gridcolor': 'lightgray',
+                        'showgrid': True
+                    },
+                    'caxis': {
+                        'title': {'text': data.iloc[0, 9] if len(data.columns) > 9 else 'C', 'font': {'size': 14}},
+                        'min': 0.01, 
+                        'linewidth': 2, 
+                        'ticks': 'outside',
+                        'tickvals': np.arange(0, 1.1, 0.1), 
+                        'tickformat': '.0%',
+                        'gridcolor': 'lightgray',
+                        'showgrid': True
+                    }
+                }
+                
+                # Mise en forme
+                fig.update_layout({
+                    'ternary': axis_config,
                     'showlegend': False,
                     'height': 700,
                     'title': {
