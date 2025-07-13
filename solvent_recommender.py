@@ -14,28 +14,39 @@ st.title("🔬 Solvent System Recommender Pro")
 
 # Constants
 MODEL_PATH = "solvent_model.pkl"
-DATA_CACHE_PATH = "processed_data_cache.pkl"
+KDDB_PATH = "KDDB.xlsx"
+DBDQ_PATH = "DBDQ.xlsx"
+DBDT_PATH = "DBDT.xlsx"
 
-# Solvent database
-SOLVENT_DB = {
-    'Water': {'SMILES': 'O', 'Type': 'Polar'},
-    'Methanol': {'SMILES': 'CO', 'Type': 'Polar protic'},
-    'Ethanol': {'SMILES': 'CCO', 'Type': 'Polar protic'},
-    'Acetonitrile': {'SMILES': 'CC#N', 'Type': 'Polar aprotic'},
-    'Chloroform': {'SMILES': 'ClC(Cl)Cl', 'Type': 'Non-polar'},
-    'Hexane': {'SMILES': 'CCCCCC', 'Type': 'Non-polar'},
-    'Acetone': {'SMILES': 'CC(=O)C', 'Type': 'Polar aprotic'},
-    'DMSO': {'SMILES': 'CS(=O)C', 'Type': 'Polar aprotic'}
-}
+def load_solvents_from_files():
+    """Charge la liste des solvants depuis les fichiers Excel"""
+    solvents = set()
+    
+    try:
+        # Charger tous les fichiers
+        kddb = pd.read_excel(KDDB_PATH, sheet_name=None)
+        dbdq = pd.read_excel(DBDQ_PATH, sheet_name=None)
+        dbdt = pd.read_excel(DBDT_PATH, sheet_name=None)
+        
+        # Extraire les solvants uniques de tous les fichiers
+        for data in [kddb, dbdq, dbdt]:
+            for sheet_name, sheet_data in data.items():
+                if 'System' in sheet_data.columns:
+                    solvents.update(sheet_data['System'].unique())
+        
+        return sorted(list(solvents))
+    
+    except Exception as e:
+        st.error(f"Error loading solvent data: {str(e)}")
+        return []
 
 def load_model():
     """Charge le modèle avec vérification des features"""
     try:
         if os.path.exists(MODEL_PATH):
             model = joblib.load(MODEL_PATH)
-            # Vérification des features attendues
             if hasattr(model, 'feature_names_in_'):
-                st.session_state['model_features'] = list(model.feature_names_in_)
+                st.session_state['expected_features'] = list(model.feature_names_in_)
             return model
         st.error("Model file not found!")
         return None
@@ -44,7 +55,7 @@ def load_model():
         return None
 
 def calculate_molecular_features(smiles):
-    """Calcule TOUTES les features nécessaires dans le bon ordre"""
+    """Calcule les features moléculaires"""
     if not smiles:
         return None
     
@@ -53,7 +64,7 @@ def calculate_molecular_features(smiles):
         st.error("Invalid SMILES string")
         return None
     
-    features = {
+    return {
         'MolWeight': Descriptors.MolWt(mol),
         'LogP': Descriptors.MolLogP(mol),
         'HBD': Lipinski.NumHDonors(mol),
@@ -65,35 +76,23 @@ def calculate_molecular_features(smiles):
         'RingCount': Lipinski.RingCount(mol),
         'FractionCSP3': Descriptors.FractionCSP3(mol)
     }
-    
-    # Ordonne les features selon le modèle si disponible
-    if 'model_features' in st.session_state:
-        ordered_features = {}
-        for feat in st.session_state['model_features']:
-            if feat in features:
-                ordered_features[feat] = features[feat]
-            elif feat.startswith(('%Vol', '%Mol', '%Mas')):
-                ordered_features[feat] = 0  # Initialisé à 0 pour les solvants
-            else:
-                ordered_features[feat] = 0  # Valeur par défaut si feature manquante
-        return ordered_features
-    
-    return features
 
 def create_input_vector(mol_features, solvent_data):
-    """Crée un input parfaitement formaté pour le modèle"""
-    # Crée une copie pour ne pas modifier l'original
-    input_features = mol_features.copy()
+    """Crée le vecteur d'entrée pour le modèle"""
+    input_features = {}
+    
+    # Ajoute les features moléculaires
+    input_features.update(mol_features)
     
     # Ajoute les compositions de solvants
     perc_type = solvent_data['percentage_type']
-    for i, percentage in enumerate(solvent_data['percentages'], 1):
+    for i, (solvent, percentage) in enumerate(zip(solvent_data['names'], solvent_data['percentages']), 1):
         input_features[f"{perc_type}{i}"] = percentage
     
-    # Convertit en DataFrame avec les colonnes dans le bon ordre
-    if 'model_features' in st.session_state:
-        input_df = pd.DataFrame(columns=st.session_state['model_features'])
-        for feat in st.session_state['model_features']:
+    # Crée un DataFrame avec les colonnes dans le bon ordre
+    if 'expected_features' in st.session_state:
+        input_df = pd.DataFrame(columns=st.session_state['expected_features'])
+        for feat in st.session_state['expected_features']:
             input_df[feat] = [input_features.get(feat, 0)]
     else:
         input_df = pd.DataFrame([input_features])
@@ -101,12 +100,18 @@ def create_input_vector(mol_features, solvent_data):
     return input_df
 
 def main():
+    # Charge la liste des solvants depuis les fichiers
+    all_solvents = load_solvents_from_files()
+    if not all_solvents:
+        st.error("No solvents found in data files!")
+        return
+    
     # Charge le modèle
     model = load_model()
     if not model:
         return
 
-    # Input molécule
+    # Interface utilisateur
     st.header("1. Molecule Input")
     smiles = st.text_input("Enter SMILES:", "CCO")
     
@@ -143,14 +148,13 @@ def main():
         with cols[0]:
             solvent = st.selectbox(
                 f"Solvent {i+1}",
-                list(SOLVENT_DB.keys()),
+                all_solvents,
                 key=f"solv_{i}"
             )
             solvents.append(solvent)
         
         with cols[1]:
             if i == num_solvents - 1:
-                # Dernier solvant prend le reste
                 perc = st.number_input(
                     f"Percentage {solvent}",
                     min_value=0.0,
@@ -183,11 +187,10 @@ def main():
     if st.button("Predict Log KD"):
         input_df = create_input_vector(mol_features, solvent_data)
         
-        # Debug: Affiche les features
+        # Debug
         if st.session_state.get('debug_mode', False):
             st.write("Input DataFrame:", input_df)
             st.write("Columns:", input_df.columns.tolist())
-            st.write("Model features:", st.session_state.get('model_features', []))
         
         try:
             prediction = model.predict(input_df)[0]
@@ -212,9 +215,6 @@ def main():
             
         except Exception as e:
             st.error(f"Prediction error: {str(e)}")
-            if 'model_features' in st.session_state:
-                st.write("Model expects features in this exact order:")
-                st.write(st.session_state['model_features'])
 
 # Debug mode
 if st.sidebar.checkbox("Debug Mode"):
