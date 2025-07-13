@@ -258,9 +258,10 @@ elif modules[selected_module] == "ternary":
 
     with st.expander("ℹ️ Instructions"):
         st.write("""
-        1. Téléversez un fichier Excel avec les colonnes: V1, V2, V1', V2'
-        2. Le diagramme ternaire interactif sera généré automatiquement
-        3. Utilisez les outils pour explorer les données
+        1. Téléversez un fichier Excel avec les colonnes: V1 (solvant 1), V2 (solvant 2), V1', V2'
+        2. Le diagramme ternaire en triangle rectangle sera généré automatiquement
+        3. L'axe X représente le solvant 1, l'axe Y le solvant 2
+        4. Le troisième composant est calculé comme 1 - V1 - V2
         """)
     
     uploaded_file = st.file_uploader("Téléversez votre fichier Excel", type=["xlsx"])
@@ -274,173 +275,81 @@ elif modules[selected_module] == "ternary":
                 st.error(f"Colonnes requises manquantes: {', '.join(required_columns)}")
             else:
                 # Préparation des données
-                x = data['V1']
-                y = data['V2']
-                x_prime = data["V1'"]
-                y_prime = data["V2'"]
+                v1 = data['V1']
+                v2 = data['V2']
+                v1_prime = data["V1'"]
+                v2_prime = data["V2'"]
                 
-                # Conversion en coordonnées ternaires
-                def to_ternary(x, y):
-                    a = x
-                    b = y
-                    c = 1 - x - y
-                    return a, b, c
+                # Création de la figure matplotlib
+                fig, ax = plt.subplots(figsize=(8, 8))
                 
-                # Création du diagramme ternaire
-                fig = go.Figure()
-                
-                # Ajout du triangle de base
-                fig.add_trace(go.Scatterternary({
-                    'mode': 'lines',
-                    'a': [1, 0, 0, 1],
-                    'b': [0, 1, 0, 0],
-                    'c': [0, 0, 1, 0],
-                    'line': {'color': 'black', 'width': 2},
-                    'hoverinfo': 'none',
-                    'showlegend': False
-                }))
+                # Dessin du triangle rectangle
+                ax.plot([0, 1, 0, 0], [0, 0, 1, 0], 'k-', linewidth=2)
                 
                 # Ajout des lignes et points
-                for i in range(len(x)):
-                    a1, b1, c1 = to_ternary(x[i], y[i])
-                    a2, b2, c2 = to_ternary(x_prime[i], y_prime[i])
-                    
-                    color = f'rgb({np.random.randint(50,200)},{np.random.randint(50,200)},{np.random.randint(50,200)})'
-                    
-                    fig.add_trace(go.Scatterternary({
-                        'mode': 'lines+markers',
-                        'a': [a1, a2],
-                        'b': [b1, b2],
-                        'c': [c1, c2],
-                        'line': {'width': 2, 'color': color},
-                        'marker': {'size': 8, 'color': color},
-                        'hoverinfo': 'text',
-                        'text': f"Ligne {i+1}: ({x[i]:.2f}, {y[i]:.2f}) → ({x_prime[i]:.2f}, {y_prime[i]:.2f})",
-                        'showlegend': False
-                    }))
+                for i in range(len(v1)):
+                    color = np.random.rand(3,)
+                    ax.plot([v1[i], v1_prime[i]], [v2[i], v2_prime[i]], 
+                            color=color, marker='o', markersize=6, linewidth=2)
                 
-                # Configuration des axes avec propriétés valides
-                axis_config = {
-                    'sum': 1,
-                    'aaxis': {
-                        'title': {'text': data.iloc[0, 7] if len(data.columns) > 7 else 'A', 'font': {'size': 14}},
-                        'min': 0.01, 
-                        'linewidth': 2, 
-                        'ticks': 'outside',
-                        'tickvals': np.arange(0, 1.1, 0.1), 
-                        'tickformat': '.0%',
-                        'gridcolor': 'lightgray',
-                        'showgrid': True
-                    },
-                    'baxis': {
-                        'title': {'text': data.iloc[0, 8] if len(data.columns) > 8 else 'B', 'font': {'size': 14}},
-                        'min': 0.01, 
-                        'linewidth': 2, 
-                        'ticks': 'outside',
-                        'tickvals': np.arange(0, 1.1, 0.1), 
-                        'tickformat': '.0%',
-                        'gridcolor': 'lightgray',
-                        'showgrid': True
-                    },
-                    'caxis': {
-                        'title': {'text': data.iloc[0, 9] if len(data.columns) > 9 else 'C', 'font': {'size': 14}},
-                        'min': 0.01, 
-                        'linewidth': 2, 
-                        'ticks': 'outside',
-                        'tickvals': np.arange(0, 1.1, 0.1), 
-                        'tickformat': '.0%',
-                        'gridcolor': 'lightgray',
-                        'showgrid': True
-                    }
-                }
+                # Configuration des axes
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                ax.set_aspect('equal', 'box')
                 
-                # Mise en forme
-                fig.update_layout({
-                    'ternary': axis_config,
-                    'showlegend': False,
-                    'height': 700,
-                    'title': {
-                        'text': f"{data.iloc[0, 7] if len(data.columns) > 7 else 'A'} / {data.iloc[0, 8] if len(data.columns) > 8 else 'B'} / {data.iloc[0, 9] if len(data.columns) > 9 else 'C'}",
-                        'x': 0.5,
-                        'font': {'size': 16}
-                    },
-                    'hovermode': 'closest',
-                    'margin': {'t': 60}
-                })
+                # Labels des axes
+                ax.set_xlabel(data.iloc[0, 7] if len(data.columns) > 7 else 'Solvant 1', fontsize=12)
+                ax.set_ylabel(data.iloc[0, 8] if len(data.columns) > 8 else 'Solvant 2', fontsize=12)
                 
-                # Affichage du graphique
-                st.plotly_chart(fig, use_container_width=True)
+                # Label du troisième composant (hypoténuse)
+                ax.text(0.5, 0.5, data.iloc[0, 9] if len(data.columns) > 9 else 'Solvant 3', 
+                        fontsize=12, rotation=-45, ha='center', va='center')
                 
-                # Options interactives
-                st.subheader("🛠 Options Avancées")
-                col1, col2 = st.columns(2)
+                # Ajout de la grille
+                ax.grid(True, linestyle='--', alpha=0.5)
+                ax.set_xticks(np.arange(0, 1.1, 0.1))
+                ax.set_yticks(np.arange(0, 1.1, 0.1))
                 
-                with col1:
-                    # Affichage des labels
-                    show_labels = st.checkbox("Afficher les étiquettes des points", value=False)
-                    if show_labels:
-                        for i in range(len(x)):
-                            a, b, c = to_ternary(x_prime[i], y_prime[i])
-                            fig.add_annotation(
-                                x=a, y=b, text=f"P{i+1}",
-                                showarrow=True, arrowhead=1, ax=0, ay=-20
-                            )
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Style de grille
-                    grid_style = st.selectbox("Style de grille", ["Normal", "Pointillés", "Aucun"])
-                    if grid_style == "Pointillés":
-                        fig.update_layout({
-                            'ternary': {
-                                'aaxis': {'griddash': 'dot'},
-                                'baxis': {'griddash': 'dot'},
-                                'caxis': {'griddash': 'dot'}
-                            }
-                        })
-                    elif grid_style == "Aucun":
-                        fig.update_layout({
-                            'ternary': {
-                                'aaxis': {'showgrid': False},
-                                'baxis': {'showgrid': False},
-                                'caxis': {'showgrid': False}
-                            }
-                        })
-                    st.plotly_chart(fig, use_container_width=True)
+                # Titre
+                title = f"{data.iloc[0, 7] if len(data.columns) > 7 else 'Solvant 1'} / {data.iloc[0, 8] if len(data.columns) > 8 else 'Solvant 2'} / {data.iloc[0, 9] if len(data.columns) > 9 else 'Solvant 3'}"
+                ax.set_title(title, fontsize=14, pad=20)
                 
-                with col2:
-                    # Export des données
-                    st.write("**Exporter le diagramme:**")
-                    export_format = st.radio("Format", ["HTML", "PNG", "SVG"], horizontal=True)
-                    
-                    if st.button("Générer l'export"):
-                        if export_format == "HTML":
-                            html = fig.to_html()
-                            st.download_button(
-                                label="Télécharger HTML",
-                                data=html,
-                                file_name="ternary_diagram.html",
-                                mime="text/html"
-                            )
-                        elif export_format == "PNG":
-                            img_bytes = fig.to_image(format="png")
-                            st.download_button(
-                                label="Télécharger PNG",
-                                data=img_bytes,
-                                file_name="ternary_diagram.png",
-                                mime="image/png"
-                            )
-                        elif export_format == "SVG":
-                            img_bytes = fig.to_image(format="svg")
-                            st.download_button(
-                                label="Télécharger SVG",
-                                data=img_bytes,
-                                file_name="ternary_diagram.svg",
-                                mime="image/svg+xml"
-                            )
+                # Affichage dans Streamlit
+                st.pyplot(fig)
+                
+                # Options d'export
+                st.subheader("📤 Options d'Export")
+                export_format = st.selectbox("Format d'export", ["PNG", "PDF", "SVG"])
+                
+                if st.button("Exporter le diagramme"):
+                    buf = BytesIO()
+                    if export_format == "PNG":
+                        fig.savefig(buf, format="png", dpi=300)
+                        st.download_button(
+                            label="Télécharger PNG",
+                            data=buf.getvalue(),
+                            file_name="ternary_diagram.png",
+                            mime="image/png"
+                        )
+                    elif export_format == "PDF":
+                        fig.savefig(buf, format="pdf")
+                        st.download_button(
+                            label="Télécharger PDF",
+                            data=buf.getvalue(),
+                            file_name="ternary_diagram.pdf",
+                            mime="application/pdf"
+                        )
+                    elif export_format == "SVG":
+                        fig.savefig(buf, format="svg")
+                        st.download_button(
+                            label="Télécharger SVG",
+                            data=buf.getvalue(),
+                            file_name="ternary_diagram.svg",
+                            mime="image/svg+xml"
+                        )
         
         except Exception as e:
             st.error(f"Erreur lors du traitement du fichier: {str(e)}")
-
 # ==============================================
 # Module Diagramme de Phase Quaternaire
 # ==============================================
