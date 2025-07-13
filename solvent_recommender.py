@@ -73,8 +73,8 @@ def load_and_preprocess_data(use_cache=True):
                     except:
                         continue
                 
-                if compositions:
-                    system_compositions[system_name] = sorted(list(set(compositions)))
+                # Ensure each system has at least a "Default" composition
+                system_compositions[system_name] = sorted(list(set(compositions))) if compositions else ["Default"]
         
         # Process KDDB to get molecular data
         data = []
@@ -107,28 +107,33 @@ def load_and_preprocess_data(use_cache=True):
                     system_name = str(row['System']).strip()
                     composition = str(row['Composition']).strip()
                     
-                    if system_name in system_compositions and composition in system_compositions[system_name]:
-                        # Find matching composition data
-                        for db in [dbdq, dbdt]:
-                            if system_name in db:
-                                system_data = db[system_name]
-                                match = system_data[system_data['Composition'].astype(str) == composition]
-                                
-                                if not match.empty:
-                                    solvent_data = match.iloc[0].to_dict()
+                    if system_name in system_compositions:
+                        # Use default composition if none specified
+                        if not composition:
+                            composition = system_compositions[system_name][0]
+                        
+                        if composition in system_compositions[system_name]:
+                            # Find matching composition data
+                            for db in [dbdq, dbdt]:
+                                if system_name in db:
+                                    system_data = db[system_name]
+                                    match = system_data[system_data['Composition'].astype(str) == composition]
                                     
-                                    # Add composition features
-                                    for i in range(1, 5):
-                                        for prefix in ['%Vol', '%Mol', '%Mas']:
-                                            col = f"{prefix}{i} - UP"
-                                            if col in solvent_data:
-                                                try:
-                                                    features[f"{prefix}{i}"] = float(solvent_data[col])
-                                                except:
-                                                    features[f"{prefix}{i}"] = 0.0
-                                    
-                                    data.append(features)
-                                    break
+                                    if not match.empty:
+                                        solvent_data = match.iloc[0].to_dict()
+                                        
+                                        # Add composition features
+                                        for i in range(1, 5):
+                                            for prefix in ['%Vol', '%Mol', '%Mas']:
+                                                col = f"{prefix}{i} - UP"
+                                                if col in solvent_data:
+                                                    try:
+                                                        features[f"{prefix}{i}"] = float(solvent_data[col])
+                                                    except:
+                                                        features[f"{prefix}{i}"] = 0.0
+                                        
+                                        data.append(features)
+                                        break
                                     
                 except Exception as e:
                     if debug_mode:
@@ -198,6 +203,13 @@ def get_composition_data(system_name, composition):
                 match = system_data[system_data['Composition'].astype(str) == str(composition)]
                 if not match.empty:
                     return match.iloc[0]
+                
+        # If no exact match found, return first row for the system
+        for db in [dbdq, dbdt]:
+            if system_name in db:
+                system_data = db[system_name]
+                if not system_data.empty:
+                    return system_data.iloc[0]
     except Exception as e:
         if debug_mode:
             st.warning(f"Error loading composition data: {str(e)}")
@@ -211,7 +223,7 @@ def main():
         # Ensure system_compositions is always a dictionary
         if not isinstance(system_compositions, dict):
             if isinstance(system_compositions, list):
-                system_compositions = {sys: [] for sys in system_compositions} if system_compositions else {}
+                system_compositions = {sys: ["Default"] for sys in system_compositions} if system_compositions else {}
             else:
                 system_compositions = {}
         
@@ -288,19 +300,21 @@ def main():
         st.error("No solvent systems found in data files!")
         return
     
+    # Filter out systems with no compositions
+    valid_systems = {k: v for k, v in system_compositions.items() if v}
+    if not valid_systems:
+        st.error("No valid solvent systems found (all systems have no compositions)!")
+        return
+    
     # Select system
     selected_system = st.selectbox(
         "Select solvent system:",
-        sorted(system_compositions.keys()),
+        sorted(valid_systems.keys()),
         index=0
     )
     
     # Get available compositions for selected system
-    compositions = system_compositions.get(selected_system, [])
-    if not compositions:
-        st.error(f"No compositions found for system: {selected_system}")
-        return
-    
+    compositions = valid_systems.get(selected_system, ["Default"])
     selected_composition = st.selectbox(
         "Select composition:",
         compositions,
@@ -310,8 +324,8 @@ def main():
     # Get composition data
     composition_data = get_composition_data(selected_system, selected_composition)
     if composition_data is None:
-        st.error(f"Could not load composition data for {selected_system} - {selected_composition}")
-        return
+        st.warning(f"Could not load detailed composition data for {selected_system} - using default values")
+        composition_data = {}
     
     # Display solvent composition
     st.subheader("Solvent Composition")
