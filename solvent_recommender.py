@@ -361,7 +361,7 @@ elif modules[selected_module] == "ternary":
                 st.subheader("🛠 Options Avancées")
                 col1, col2 = st.columns(2)
                 
-                with col1:
+with col1:
                     # Affichage des labels
                     show_labels = st.checkbox("Afficher les étiquettes des points", value=False)
                     if show_labels:
@@ -373,22 +373,22 @@ elif modules[selected_module] == "ternary":
                             )
                         st.plotly_chart(fig, use_container_width=True)
                     
-                    # Grille fine
-                    grid_option = st.selectbox("Style de grille", ["Normale", "Fine", "Aucune"])
-                    if grid_option == "Fine":
+                    # Style de grille
+                    grid_style = st.selectbox("Style de grille", ["Normal", "Pointillés", "Aucun"])
+                    if grid_style == "Pointillés":
                         fig.update_layout({
                             'ternary': {
-                                'aaxis': {'minorgridcount': 9},
-                                'baxis': {'minorgridcount': 9},
-                                'caxis': {'minorgridcount': 9}
+                                'aaxis': {'griddash': 'dot'},
+                                'baxis': {'griddash': 'dot'},
+                                'caxis': {'griddash': 'dot'}
                             }
                         })
-                    elif grid_option == "Aucune":
+                    elif grid_style == "Aucun":
                         fig.update_layout({
                             'ternary': {
-                                'aaxis': {'gridcolor': 'rgba(0,0,0,0)', 'minorgridcolor': 'rgba(0,0,0,0)'},
-                                'baxis': {'gridcolor': 'rgba(0,0,0,0)', 'minorgridcolor': 'rgba(0,0,0,0)'},
-                                'caxis': {'gridcolor': 'rgba(0,0,0,0)', 'minorgridcolor': 'rgba(0,0,0,0)'}
+                                'aaxis': {'showgrid': False},
+                                'baxis': {'showgrid': False},
+                                'caxis': {'showgrid': False}
                             }
                         })
                     st.plotly_chart(fig, use_container_width=True)
