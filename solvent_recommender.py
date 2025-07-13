@@ -9,14 +9,14 @@ import seaborn as sns
 import os
 
 # Configuration
-st.set_page_config(page_title="🔬 Advanced Solvent Recommender", layout="wide")
-st.title("🔬 Advanced Solvent System Recommender")
+st.set_page_config(page_title="🔬 Solvent System Recommender Pro", layout="wide")
+st.title("🔬 Solvent System Recommender Pro")
 
 # Constants
 MODEL_PATH = "solvent_model.pkl"
 DATA_CACHE_PATH = "processed_data_cache.pkl"
 
-# Enhanced solvent database
+# Solvent database
 SOLVENT_DB = {
     'Water': {'SMILES': 'O', 'Type': 'Polar'},
     'Methanol': {'SMILES': 'CO', 'Type': 'Polar protic'},
@@ -36,9 +36,8 @@ def load_model():
     try:
         if os.path.exists(MODEL_PATH):
             return joblib.load(MODEL_PATH)
-        else:
-            st.error("Model file not found! Please train the model first.")
-            return None
+        st.error("Model file not found! Please train the model first.")
+        return None
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
         return None
@@ -65,26 +64,23 @@ def calculate_molecular_features(smiles):
 
 def create_input_vector(mol_features, solvent_data):
     """Create proper input vector for the model."""
-    # Base template with zeros for all expected features
     input_template = {
-        'MolWeight': 0,
-        'LogP': 0,
-        'HBD': 0,
-        'HBA': 0,
-        'TPSA': 0,
-        'RotatableBonds': 0,
-        'AromaticRings': 0,
+        'MolWeight': 0, 'LogP': 0, 'HBD': 0, 'HBA': 0,
+        'TPSA': 0, 'RotatableBonds': 0, 'AromaticRings': 0,
         '%Vol1': 0, '%Vol2': 0, '%Vol3': 0, '%Vol4': 0,
         '%Mol1': 0, '%Mol2': 0, '%Mol3': 0, '%Mol4': 0,
         '%Mas1': 0, '%Mas2': 0, '%Mas3': 0, '%Mas4': 0
     }
     
-    # Update with molecular features
     input_template.update(mol_features)
     
-    # Update with solvent composition
-    for i, (perc_type, value) in enumerate(solvent_data['percentages'].items(), 1):
-        input_template[f"{perc_type}{i}"] = value
+    perc_type = solvent_data['percentage_type']
+    percentages = solvent_data['percentages']
+    
+    # Assign percentages to correct columns
+    for i in range(len(percentages)):
+        col_name = f"{perc_type}{i+1}"
+        input_template[col_name] = percentages[i]
     
     return pd.DataFrame([input_template])
 
@@ -115,51 +111,60 @@ def main():
     # Solvent selection
     st.header("2. Solvent Composition")
     
-    # Create 4 solvent slots
-    cols = st.columns(4)
-    solvent_data = {
-        'names': [],
-        'percentages': {},
-        'percentage_type': '%Vol'  # Default to volume percentage
-    }
-    
     # Percentage type selector
-    solvent_data['percentage_type'] = st.radio(
+    percentage_type = st.radio(
         "Percentage type:",
         ['%Vol', '%Mol', '%Mas'],
         horizontal=True
     )
     
-    # Solvent selectors and percentages
-    total_percentage = 0
-    for i in range(4):
-        with cols[i]:
-            solvent_name = st.selectbox(
+    # Solvent selection
+    num_solvents = st.slider("Number of solvents", 1, 4, 1)
+    
+    solvents = []
+    percentages = []
+    remaining_perc = 100.0
+    
+    for i in range(num_solvents):
+        col1, col2 = st.columns([3, 2])
+        
+        with col1:
+            solvent = st.selectbox(
                 f"Solvent {i+1}",
-                ['None'] + list(SOLVENT_DB.keys()),
+                list(SOLVENT_DB.keys()),
                 key=f"solv_{i}"
             )
+            solvents.append(solvent)
+        
+        with col2:
+            if i == num_solvents - 1:
+                # Last solvent gets remaining percentage
+                percentage = st.number_input(
+                    f"Percentage {solvent}",
+                    min_value=0.0,
+                    max_value=remaining_perc,
+                    value=remaining_perc,
+                    key=f"perc_{i}"
+                )
+            else:
+                max_val = min(100.0, remaining_perc)
+                percentage = st.number_input(
+                    f"Percentage {solvent}",
+                    min_value=0.0,
+                    max_value=max_val,
+                    value=(100.0/num_solvents) if i == 0 else 0.0,
+                    key=f"perc_{i}"
+                )
             
-            if solvent_name != 'None':
-                solvent_data['names'].append(solvent_name)
-                
-                if i == 0:
-                    # First solvent defaults to 100%
-                    percentage = 100.0
-                else:
-                    percentage = st.slider(
-                        f"Percentage {solvent_name}",
-                        0.0, 100.0, 0.0,
-                        key=f"perc_{i}"
-                    )
-                
-                solvent_data['percentages'][solvent_data['percentage_type']] = percentage
-                total_percentage += percentage
+            percentages.append(percentage)
+            remaining_perc -= percentage
     
-    # Auto-balance percentages
-    if len(solvent_data['names']) > 1 and total_percentage > 100:
-        st.error("Total percentage cannot exceed 100%!")
-        return
+    # Prepare solvent data
+    solvent_data = {
+        'names': solvents,
+        'percentages': percentages,
+        'percentage_type': percentage_type
+    }
     
     # Prediction section
     st.header("3. Prediction")
@@ -181,10 +186,7 @@ def main():
             
             # Show solvent system
             system_desc = " + ".join([
-                f"{p}% {n}" for n, p in zip(
-                    solvent_data['names'],
-                    solvent_data['percentages'].values()
-                )
+                f"{p}% {n}" for n, p in zip(solvents, percentages)
             ])
             st.write(f"Solvent System: {system_desc}")
             
