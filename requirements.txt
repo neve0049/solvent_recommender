@@ -5,3 +5,4 @@ rdkit==2023.9.5
 numpy==1.26.4
 openpyxl
 matplotlib
+seaborn
