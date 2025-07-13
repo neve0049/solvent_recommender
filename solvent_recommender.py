@@ -238,7 +238,7 @@ elif selected_module == "Diagramme de Phase Ternaire":
                 ax.grid(which='both', linestyle='-', linewidth=0.5)
                 
                 # Labels des axes
-                ax.set_xlabel('V1' + (' ' + str(data.iloc[0, 7]) if len(data.columns) > 7 else '')
+                ax.set_xlabel('V1' + (' ' + str(data.iloc[0, 7]) if len(data.columns) > 7 else ''))
                 ax.set_ylabel('V2' + (' ' + str(data.iloc[0, 8]) if len(data.columns) > 8 else ''))
                 
                 # Titre
