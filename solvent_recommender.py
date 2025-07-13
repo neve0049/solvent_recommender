@@ -208,10 +208,17 @@ def main():
     with st.spinner("Loading and preprocessing data..."):
         training_data, system_compositions, solvent_names = load_and_preprocess_data(use_cached_data)
         
+        # Ensure system_compositions is always a dictionary
+        if not isinstance(system_compositions, dict):
+            if isinstance(system_compositions, list):
+                system_compositions = {sys: [] for sys in system_compositions} if system_compositions else {}
+            else:
+                system_compositions = {}
+        
         if debug_mode:
             st.write(f"Loaded {len(training_data)} training samples")
             st.write(f"Found {len(system_compositions)} solvent systems")
-            st.write("Sample systems:", list(system_compositions.keys())[:3])
+            st.write("Sample systems:", list(system_compositions.keys())[:3] if system_compositions else "None")
         
         if training_data.empty:
             st.error("No valid training data found!")
