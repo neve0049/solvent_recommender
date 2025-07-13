@@ -104,6 +104,9 @@ if modules[selected_module] == "hansen":
                 colors = ['red', 'green', 'blue']
                 type_labels = ['Non-Green', 'Green', 'Simulated']
                 
+                # Bouton ON/OFF pour les noms des composés
+                show_names = st.toggle("Afficher les noms des composés", value=False)
+                
                 # Création du graphique 3D
                 fig = go.Figure()
                 
