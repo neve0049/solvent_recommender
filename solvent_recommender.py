@@ -535,7 +535,7 @@ elif modules[selected_module] == "quaternary":
                                     method="animate",
                                     args=[None, {"frame": {"duration": 50, "redraw": True}}]
                                 )]
-                        )]
+                        )])
                         
                         frames = []
                         for angle in range(0, 360, 5):
