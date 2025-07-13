@@ -16,6 +16,7 @@ st.title("🔬 Solvent System Recommender Pro")
 MODEL_PATH = "solvent_model.pkl"
 DATA_CACHE_PATH = "processed_data_cache.pkl"
 
+# Solvent database
 SOLVENT_DB = {
     'Water': {'SMILES': 'O', 'Type': 'Polar'},
     'Methanol': {'SMILES': 'CO', 'Type': 'Polar protic'},
@@ -28,9 +29,14 @@ SOLVENT_DB = {
 }
 
 def load_model():
+    """Charge le modèle avec vérification des features"""
     try:
         if os.path.exists(MODEL_PATH):
-            return joblib.load(MODEL_PATH)
+            model = joblib.load(MODEL_PATH)
+            # Vérification des features attendues
+            if hasattr(model, 'feature_names_in_'):
+                st.session_state['model_features'] = list(model.feature_names_in_)
+            return model
         st.error("Model file not found!")
         return None
     except Exception as e:
@@ -38,7 +44,7 @@ def load_model():
         return None
 
 def calculate_molecular_features(smiles):
-    """Calculate ALL features needed by the model"""
+    """Calcule TOUTES les features nécessaires dans le bon ordre"""
     if not smiles:
         return None
     
@@ -47,7 +53,7 @@ def calculate_molecular_features(smiles):
         st.error("Invalid SMILES string")
         return None
     
-    return {
+    features = {
         'MolWeight': Descriptors.MolWt(mol),
         'LogP': Descriptors.MolLogP(mol),
         'HBD': Lipinski.NumHDonors(mol),
@@ -59,38 +65,48 @@ def calculate_molecular_features(smiles):
         'RingCount': Lipinski.RingCount(mol),
         'FractionCSP3': Descriptors.FractionCSP3(mol)
     }
+    
+    # Ordonne les features selon le modèle si disponible
+    if 'model_features' in st.session_state:
+        ordered_features = {}
+        for feat in st.session_state['model_features']:
+            if feat in features:
+                ordered_features[feat] = features[feat]
+            elif feat.startswith(('%Vol', '%Mol', '%Mas')):
+                ordered_features[feat] = 0  # Initialisé à 0 pour les solvants
+            else:
+                ordered_features[feat] = 0  # Valeur par défaut si feature manquante
+        return ordered_features
+    
+    return features
 
 def create_input_vector(mol_features, solvent_data):
-    """Create input with EXACTLY the features the model expects"""
-    # Template with all expected features initialized to 0
-    input_template = {
-        # Molecular features
-        'MolWeight': 0, 'LogP': 0, 'HBD': 0, 'HBA': 0,
-        'TPSA': 0, 'RotatableBonds': 0, 'AromaticRings': 0,
-        'HeavyAtoms': 0, 'RingCount': 0, 'FractionCSP3': 0,
-        
-        # Solvent composition features
-        '%Vol1': 0, '%Vol2': 0, '%Vol3': 0, '%Vol4': 0,
-        '%Mol1': 0, '%Mol2': 0, '%Mol3': 0, '%Mol4': 0,
-        '%Mas1': 0, '%Mas2': 0, '%Mas3': 0, '%Mas4': 0
-    }
+    """Crée un input parfaitement formaté pour le modèle"""
+    # Crée une copie pour ne pas modifier l'original
+    input_features = mol_features.copy()
     
-    # Update with actual molecular features
-    input_template.update(mol_features)
-    
-    # Update with solvent percentages
+    # Ajoute les compositions de solvants
     perc_type = solvent_data['percentage_type']
     for i, percentage in enumerate(solvent_data['percentages'], 1):
-        input_template[f"{perc_type}{i}"] = percentage
+        input_features[f"{perc_type}{i}"] = percentage
     
-    return pd.DataFrame([input_template])
+    # Convertit en DataFrame avec les colonnes dans le bon ordre
+    if 'model_features' in st.session_state:
+        input_df = pd.DataFrame(columns=st.session_state['model_features'])
+        for feat in st.session_state['model_features']:
+            input_df[feat] = [input_features.get(feat, 0)]
+    else:
+        input_df = pd.DataFrame([input_features])
+    
+    return input_df
 
 def main():
+    # Charge le modèle
     model = load_model()
     if not model:
         return
 
-    # Molecule input
+    # Input molécule
     st.header("1. Molecule Input")
     smiles = st.text_input("Enter SMILES:", "CCO")
     
@@ -101,12 +117,12 @@ def main():
     if not mol_features:
         return
     
-    # Display molecule
+    # Affichage molécule
     st.subheader("Molecular Structure")
     img = Draw.MolToImage(Chem.MolFromSmiles(smiles))
     st.image(img, caption=smiles, width=300)
 
-    # Solvent selection
+    # Sélection solvants
     st.header("2. Solvent Composition")
     
     percentage_type = st.radio(
@@ -134,7 +150,7 @@ def main():
         
         with cols[1]:
             if i == num_solvents - 1:
-                # Last solvent gets remaining percentage
+                # Dernier solvant prend le reste
                 perc = st.number_input(
                     f"Percentage {solvent}",
                     min_value=0.0,
@@ -161,23 +177,29 @@ def main():
         'percentage_type': percentage_type
     }
     
-    # Prediction
+    # Prédiction
     st.header("3. Prediction")
     
     if st.button("Predict Log KD"):
         input_df = create_input_vector(mol_features, solvent_data)
         
+        # Debug: Affiche les features
+        if st.session_state.get('debug_mode', False):
+            st.write("Input DataFrame:", input_df)
+            st.write("Columns:", input_df.columns.tolist())
+            st.write("Model features:", st.session_state.get('model_features', []))
+        
         try:
             prediction = model.predict(input_df)[0]
             st.success(f"Predicted Log KD: {prediction:.2f}")
             
-            # Display solvent system
+            # Affiche le système de solvants
             system_desc = " + ".join([
                 f"{p}% {n}" for n, p in zip(solvents, percentages)
             ])
-            st.write(f"System: {system_desc} ({percentage_type})")
+            st.write(f"Solvent System: {system_desc} ({percentage_type})")
             
-            # Feature importance
+            # Importance des features
             st.subheader("Feature Importance")
             importances = pd.DataFrame({
                 'Feature': input_df.columns,
@@ -190,6 +212,13 @@ def main():
             
         except Exception as e:
             st.error(f"Prediction error: {str(e)}")
+            if 'model_features' in st.session_state:
+                st.write("Model expects features in this exact order:")
+                st.write(st.session_state['model_features'])
+
+# Debug mode
+if st.sidebar.checkbox("Debug Mode"):
+    st.session_state.debug_mode = True
 
 if __name__ == "__main__":
     main()
