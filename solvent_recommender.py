@@ -83,7 +83,7 @@ if modules[selected_module] == "hansen":
     
     uploaded_file = st.file_uploader("Upload your Excel file containing your data", type=["xlsx"])
     
-    if uploaded_file is not None:
+if uploaded_file is not None:
         try:
             data = pd.read_excel(uploaded_file)
             required_columns = ['δD', 'δP', 'δH', 'Type', 'Compounds', 'CAS', 'R0']
@@ -114,14 +114,17 @@ if modules[selected_module] == "hansen":
                 for i in range(len(x)):
                     fig.add_trace(go.Scatter3d(
                         x=[x[i]], y=[y[i]], z=[z[i]],
-                        mode='markers',
+                        mode='markers' + ('+text' if show_names else ''),
                         marker=dict(
                             size=6,
                             color=colors[types[i]],
                             opacity=0.8
                         ),
+                        text=names[i] if show_names else None,
+                        textposition="top center",
                         name=names[i],
-                        text=f"""
+                        hoverinfo='text',
+                        hovertext=f"""
                         <b>{names[i]}</b><br>
                         CAS: {CAS[i]}<br>
                         δD: {x[i]:.2f}<br>
@@ -129,7 +132,6 @@ if modules[selected_module] == "hansen":
                         δH: {z[i]:.2f}<br>
                         R0: {radii[i]:.2f}
                         """,
-                        hoverinfo='text',
                         showlegend=False
                     ))
                 
