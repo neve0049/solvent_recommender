@@ -302,10 +302,6 @@ elif modules[selected_module] == "ternary":
                 ax.set_xlabel(data.iloc[0, 7] if len(data.columns) > 7 else 'Solvant 1', fontsize=12)
                 ax.set_ylabel(data.iloc[0, 8] if len(data.columns) > 8 else 'Solvant 2', fontsize=12)
                 
-                # Label du troisième composant (hypoténuse)
-                ax.text(0.5, 0.5, data.iloc[0, 9] if len(data.columns) > 9 else 'Solvant 3', 
-                        fontsize=12, rotation=-45, ha='center', va='center')
-                
                 # Ajout de la grille
                 ax.grid(True, linestyle='--', alpha=0.5)
                 ax.set_xticks(np.arange(0, 1.1, 0.1))
