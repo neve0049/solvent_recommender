@@ -361,7 +361,7 @@ elif modules[selected_module] == "ternary":
                 st.subheader("🛠 Options Avancées")
                 col1, col2 = st.columns(2)
                 
-with col1:
+                with col1:
                     # Affichage des labels
                     show_labels = st.checkbox("Afficher les étiquettes des points", value=False)
                     if show_labels:
