@@ -1,16 +1,15 @@
 import streamlit as st
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from rdkit import Chem
 from rdkit.Chem import Descriptors, Lipinski, Draw
 import numpy as np
-from io import BytesIO
-from PIL import Image
-import matplotlib.pyplot as plt
-import seaborn as sns
 import joblib
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Configuration
 st.set_page_config(page_title="Solvent System Recommender", layout="wide")
@@ -36,18 +35,42 @@ def load_and_preprocess_data(use_cache=True):
         dbdq = pd.read_excel("DBDQ.xlsx", sheet_name=None)
         dbdt = pd.read_excel("DBDT.xlsx", sheet_name=None)
         
-        # Extract all unique solvent systems
-        all_systems = set()
-        solvent_compositions = {}
+        # Extract all unique solvent systems and their compositions
+        system_compositions = {}
+        solvent_names = {}
         
-        # Process DBDQ and DBDT to get solvent combinations
+        # Process DBDQ and DBDT
         for db in [dbdq, dbdt]:
             for sheet_name, sheet_data in db.items():
-                system_name = sheet_name
-                all_systems.add(system_name)
+                if sheet_name == "None" or not isinstance(sheet_name, str):
+                    continue
+                    
+                # Clean system name
+                system_name = sheet_name.strip()
+                if not system_name:
+                    continue
                 
-                # Store composition data for each system
-                solvent_compositions[system_name] = sheet_data
+                # Store all compositions for this system
+                compositions = []
+                for _, row in sheet_data.iterrows():
+                    try:
+                        comp = str(row.get('Composition', '')).strip()
+                        if comp:
+                            compositions.append(comp)
+                            
+                            # Extract solvent names
+                            solvents = []
+                            for i in range(1, 5):
+                                solvent = row.get(f'Solvent {i}', '')
+                                if pd.notna(solvent) and str(solvent).strip():
+                                    solvents.append(str(solvent).strip())
+                            if solvents:
+                                solvent_names[(system_name, comp)] = solvents
+                    except:
+                        continue
+                
+                if compositions:
+                    system_compositions[system_name] = sorted(list(set(compositions)))
         
         # Process KDDB to get molecular data
         data = []
@@ -77,28 +100,32 @@ def load_and_preprocess_data(use_cache=True):
                     }
                     
                     # Get solvent composition
-                    system_name = row['System']
+                    system_name = str(row['System']).strip()
                     composition = str(row['Composition']).strip()
                     
-                    if system_name in solvent_compositions:
-                        system_data = solvent_compositions[system_name]
-                        match = system_data[system_data['Composition'] == composition]
-                        
-                        if not match.empty:
-                            solvent_data = match.iloc[0].to_dict()
-                            
-                            # Add composition features
-                            for i in range(1, 5):
-                                for prefix in ['%Vol', '%Mol', '%Mas']:
-                                    col = f"{prefix}{i} - UP"
-                                    if col in solvent_data:
-                                        try:
-                                            features[f"{prefix}{i}"] = float(solvent_data[col])
-                                        except:
-                                            features[f"{prefix}{i}"] = 0.0
-                            
-                            data.append(features)
-                            
+                    if system_name in system_compositions and composition in system_compositions[system_name]:
+                        # Find matching composition data
+                        for db in [dbdq, dbdt]:
+                            if system_name in db:
+                                system_data = db[system_name]
+                                match = system_data[system_data['Composition'].astype(str) == composition]
+                                
+                                if not match.empty:
+                                    solvent_data = match.iloc[0].to_dict()
+                                    
+                                    # Add composition features
+                                    for i in range(1, 5):
+                                        for prefix in ['%Vol', '%Mol', '%Mas']:
+                                            col = f"{prefix}{i} - UP"
+                                            if col in solvent_data:
+                                                try:
+                                                    features[f"{prefix}{i}"] = float(solvent_data[col])
+                                                except:
+                                                    features[f"{prefix}{i}"] = 0.0
+                                    
+                                    data.append(features)
+                                    break
+                                    
                 except Exception as e:
                     if debug_mode:
                         st.warning(f"Error processing row: {str(e)}")
@@ -107,13 +134,13 @@ def load_and_preprocess_data(use_cache=True):
         df = pd.DataFrame(data)
         
         # Cache the processed data
-        joblib.dump((df, list(all_systems)), DATA_CACHE_PATH)
+        joblib.dump((df, system_compositions, solvent_names), DATA_CACHE_PATH)
         
-        return df, list(all_systems)
+        return df, system_compositions, solvent_names
         
     except Exception as e:
         st.error(f"Error loading files: {str(e)}")
-        return None, None
+        return None, None, None
 
 def train_model(data):
     """Train and evaluate the Random Forest model."""
@@ -155,12 +182,28 @@ def visualize_molecule(smiles):
     else:
         st.warning("Invalid SMILES string - cannot display molecule")
 
+def get_composition_data(system_name, composition):
+    """Load composition data for a specific system."""
+    try:
+        dbdq = pd.read_excel("DBDQ.xlsx", sheet_name=None)
+        dbdt = pd.read_excel("DBDT.xlsx", sheet_name=None)
+        
+        for db in [dbdq, dbdt]:
+            if system_name in db:
+                system_data = db[system_name]
+                match = system_data[system_data['Composition'].astype(str) == str(composition)]
+                if not match.empty:
+                    return match.iloc[0]
+    except:
+        pass
+    return None
+
 def main():
     # Load data
     with st.spinner("Loading and preprocessing data..."):
-        training_data, all_systems = load_and_preprocess_data(use_cached_data)
+        training_data, system_compositions, solvent_names = load_and_preprocess_data(use_cached_data)
         
-        if training_data is None or all_systems is None:
+        if training_data is None or system_compositions is None:
             st.error("Failed to load data. Please check the input files.")
             return
     
@@ -220,55 +263,55 @@ def main():
     # Solvent selection
     st.header("2. Solvent System Selection")
     
+    if not system_compositions:
+        st.error("No solvent systems found in data files!")
+        return
+    
     # Select system
     selected_system = st.selectbox(
         "Select solvent system:",
-        sorted(all_systems),
+        sorted(system_compositions.keys()),
         index=0
     )
     
-    # Load composition data for selected system
-    system_data = None
-    try:
-        dbdq = pd.read_excel("DBDQ.xlsx", sheet_name=None)
-        dbdt = pd.read_excel("DBDT.xlsx", sheet_name=None)
-        
-        if selected_system in dbdq:
-            system_data = dbdq[selected_system]
-        elif selected_system in dbdt:
-            system_data = dbdt[selected_system]
-    except:
-        pass
-    
-    if system_data is None:
-        st.error(f"Could not load data for system: {selected_system}")
+    # Get available compositions for selected system
+    compositions = system_compositions.get(selected_system, [])
+    if not compositions:
+        st.error(f"No compositions found for system: {selected_system}")
         return
     
-    # Get available compositions
-    available_compositions = system_data['Composition'].unique()
     selected_composition = st.selectbox(
         "Select composition:",
-        available_compositions,
+        compositions,
         index=0
     )
     
-    # Get the selected composition data
-    composition_data = system_data[system_data['Composition'] == selected_composition].iloc[0]
+    # Get composition data
+    composition_data = get_composition_data(selected_system, selected_composition)
+    if composition_data is None:
+        st.error(f"Could not load composition data for {selected_system} - {selected_composition}")
+        return
     
-    # Display solvent percentages
+    # Display solvent composition
     st.subheader("Solvent Composition")
     
-    # Extract solvent names
-    solvents = []
-    for i in range(1, 5):
-        col = f"Solvent {i}"
-        if col in composition_data and not pd.isna(composition_data[col]):
-            solvents.append(composition_data[col])
+    # Get solvent names for this composition
+    solvents = solvent_names.get((selected_system, selected_composition), [])
     
-    # Display percentages
-    for i, solvent in enumerate(solvents, 1):
-        perc = composition_data.get(f"%Vol{i} - UP", 0)
-        st.write(f"- {solvent}: {perc:.1f}%")
+    if not solvents:
+        # Try to extract from composition data
+        solvents = []
+        for i in range(1, 5):
+            solvent = composition_data.get(f'Solvent {i}', '')
+            if pd.notna(solvent) and str(solvent).strip():
+                solvents.append(str(solvent).strip())
+    
+    if not solvents:
+        st.warning("No solvent names found for this composition")
+    else:
+        for i, solvent in enumerate(solvents, 1):
+            perc = composition_data.get(f'%Vol{i} - UP', 0)
+            st.write(f"- {solvent}: {float(perc):.1f}%")
     
     # Prediction
     st.header("3. Prediction")
@@ -282,7 +325,10 @@ def main():
             for prefix in ['%Vol', '%Mol', '%Mas']:
                 col = f"{prefix}{i} - UP"
                 if col in composition_data:
-                    input_features[f"{prefix}{i}"] = float(composition_data[col])
+                    try:
+                        input_features[f"{prefix}{i}"] = float(composition_data[col])
+                    except:
+                        input_features[f"{prefix}{i}"] = 0.0
                 else:
                     input_features[f"{prefix}{i}"] = 0.0
         
@@ -290,6 +336,11 @@ def main():
         input_df = pd.DataFrame(columns=model.feature_names_in_)
         for feat in model.feature_names_in_:
             input_df[feat] = [input_features.get(feat, 0)]
+        
+        # Debug
+        if debug_mode:
+            st.write("Input features:", input_features)
+            st.write("Input DataFrame:", input_df)
         
         # Make prediction
         try:
@@ -309,6 +360,9 @@ def main():
             
         except Exception as e:
             st.error(f"Prediction failed: {str(e)}")
+            if debug_mode:
+                st.write("Model features:", model.feature_names_in_)
+                st.write("Input features:", input_features.keys())
 
 if __name__ == "__main__":
     main()
