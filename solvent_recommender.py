@@ -81,7 +81,7 @@ if modules[selected_module] == "hansen":
         δD, δP, δH, Compounds, Type (by default the color are 0 = Red = petro-sourced or unsafe compound, 1 = Green = bio-sourced compound, 2 = Blue = simulated HSP from COSMOQuick or other prediction software), CAS, R0.
         """)
     
-    uploaded_file = st.file_uploader("Upload your Excel file containing your data", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload your Excel file containing your data", type=["xlsx"])
     
 if uploaded_file is not None:
         try:
