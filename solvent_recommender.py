@@ -267,7 +267,7 @@ elif modules[selected_module] == "ternary":
         V1, V2, V1', V2', names of solvents must be in cells: H2, I2 and J2
         """)
     
-    uploaded_file = st.file_uploader("Téléversez votre fichier Excel", type=["xlsx"])
+    uploaded_file = st.file_uploader("Upload your excel file", type=["xlsx"])
     
     if uploaded_file is not None:
         try:
@@ -275,7 +275,7 @@ elif modules[selected_module] == "ternary":
             required_columns = ['V1', 'V2', "V1'", "V2'"]
             
             if not all(col in data.columns for col in required_columns):
-                st.error(f"Colonnes requises manquantes: {', '.join(required_columns)}")
+                st.error(f"Missing columns: {', '.join(required_columns)}")
             else:
                 # Préparation des données
                 v1 = data['V1']
@@ -317,15 +317,15 @@ elif modules[selected_module] == "ternary":
                 st.pyplot(fig)
                 
                 # Options d'export
-                st.subheader("📤 Options d'Export")
-                export_format = st.selectbox("Format d'export", ["PNG", "PDF", "SVG"])
+                st.subheader("📤 Export Options")
+                export_format = st.selectbox("Export format", ["PNG", "PDF", "SVG"])
                 
-                if st.button("Exporter le diagramme"):
+                if st.button("Export the diagram"):
                     buf = BytesIO()
                     if export_format == "PNG":
                         fig.savefig(buf, format="png", dpi=300)
                         st.download_button(
-                            label="Télécharger PNG",
+                            label="Download PNG",
                             data=buf.getvalue(),
                             file_name="ternary_diagram.png",
                             mime="image/png"
@@ -333,7 +333,7 @@ elif modules[selected_module] == "ternary":
                     elif export_format == "PDF":
                         fig.savefig(buf, format="pdf")
                         st.download_button(
-                            label="Télécharger PDF",
+                            label="Download PDF",
                             data=buf.getvalue(),
                             file_name="ternary_diagram.pdf",
                             mime="application/pdf"
@@ -341,19 +341,19 @@ elif modules[selected_module] == "ternary":
                     elif export_format == "SVG":
                         fig.savefig(buf, format="svg")
                         st.download_button(
-                            label="Télécharger SVG",
+                            label="Download SVG",
                             data=buf.getvalue(),
                             file_name="ternary_diagram.svg",
                             mime="image/svg+xml"
                         )
         
         except Exception as e:
-            st.error(f"Erreur lors du traitement du fichier: {str(e)}")
+            st.error(f"Error processing file: {str(e)}")
 # ==============================================
 # Module Diagramme de Phase Quaternaire
 # ==============================================
 elif modules[selected_module] == "quaternary":
-    st.header("🧊 Diagramme de Phase Quaternaire 3D")
+    st.header("🧊 Quaternary Phase Diagram")
     
     with st.expander("ℹ️ Instructions"):
         st.write("""
@@ -376,9 +376,11 @@ elif modules[selected_module] == "quaternary":
                 x = data['V1']
                 y = data['V2']
                 z = data['V3']
+                w = 1 - x - y - z
                 x_prime = data["V1'"]
                 y_prime = data["V2'"]
                 z_prime = data["V3'"]
+                w_prime = 1 - x_prime - y_prime - z_prime
                 
                 # Création du graphique 3D
                 fig = go.Figure()
@@ -390,6 +392,7 @@ elif modules[selected_module] == "quaternary":
                         x=[x[i], x_prime[i]],
                         y=[y[i], y_prime[i]],
                         z=[z[i], z_prime[i]],
+                        w=[w[i], w_prime[i]],
                         mode='lines+markers',
                         line=dict(width=4, color=color),
                         marker=dict(size=5, color=color),
