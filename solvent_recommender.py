@@ -398,7 +398,7 @@ elif modules[selected_module] == "quaternary":
                         marker=dict(size=5, color=color),
                         name=f"Ligne {i+1}",
                         hoverinfo='text',
-                        text=f"Ligne {i+1}: ({x[i]:.2f}, {y[i]:.2f}, {z[i]:.2f}) → ({x_prime[i]:.2f}, {y_prime[i]:.2f}, {z_prime[i]:.2f})"
+                        text=f"Ligne {i+1}: ({x[i]:.2f}, {y[i]:.2f}, {z[i]:.2f}, {w[i]:.2f}) → ({x_prime[i]:.2f}, {y_prime[i]:.2f}, {z_prime[i]:.2f}, {w_prime[i]:.2f})"
                     ))
                 
                 # Ajout de la pyramide
