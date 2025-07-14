@@ -170,7 +170,7 @@ if uploaded_file is not None:
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Section d'analyse interactive
-                st.subheader("🔍 Analyse Interactive")
+                st.subheader("🔍 Interactive Analysis")
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -187,8 +187,8 @@ if uploaded_file is not None:
                         
                         # Affichage des informations
                         st.write(f"**CAS:** {CAS[idx]}")
-                        st.write(f"**Coordonnées:** δD={x[idx]:.2f}, δP={y[idx]:.2f}, δH={z[idx]:.2f}")
-                        st.write(f"**Rayon d'interaction (R0):** {radii[idx]:.2f}")
+                        st.write(f"**Coordinates:** δD={x[idx]:.2f}, δP={y[idx]:.2f}, δH={z[idx]:.2f}")
+                        st.write(f"**Hansen Sphere Radius (R0):** {radii[idx]:.2f}")
                         
                         # Bouton pour ouvrir dans PubChem
                         if st.button(f"🔎 Search {compound_name} on PubChem"):
@@ -263,10 +263,8 @@ elif modules[selected_module] == "ternary":
 
     with st.expander("ℹ️ Instructions"):
         st.write("""
-        1. Téléversez un fichier Excel avec les colonnes: V1 (solvant 1), V2 (solvant 2), V1', V2'
-        2. Le diagramme ternaire en triangle rectangle sera généré automatiquement
-        3. L'axe X représente le solvant 1, l'axe Y le solvant 2
-        4. Le troisième composant est calculé comme 1 - V1 - V2
+        Upload the excel file containing your data. The file must contain the following columns:
+        V1, V2, V1', V2', names of solvents must be in cells: H2, I2 and J2
         """)
     
     uploaded_file = st.file_uploader("Téléversez votre fichier Excel", type=["xlsx"])
