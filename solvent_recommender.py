@@ -675,9 +675,6 @@ elif modules[selected_module] == "quaternary":
                         file_name="quaternary_diagram.png",
                         mime="image/png"
                     )
-        
-    except Exception as e:
-        st.error(f"Erreur lors du traitement du fichier: {str(e)}")
 
 # Pied de page
 st.markdown("---")
