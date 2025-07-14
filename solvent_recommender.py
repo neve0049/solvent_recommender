@@ -392,13 +392,14 @@ elif modules[selected_module] == "quaternary":
                         x=[x[i], x_prime[i]],
                         y=[y[i], y_prime[i]],
                         z=[z[i], z_prime[i]],
-                        w=[w[i], w_prime[i]],
                         mode='lines+markers',
                         line=dict(width=4, color=color),
                         marker=dict(size=5, color=color),
                         name=f"Ligne {i+1}",
-                        hoverinfo='text',
-                        text=f"Ligne {i+1}: ({x[i]:.2f}, {y[i]:.2f}, {z[i]:.2f}, {w[i]:.2f}) → ({x_prime[i]:.2f}, {y_prime[i]:.2f}, {z_prime[i]:.2f}, {w_prime[i]:.2f})"
+                        hovertemplate=(
+                f"Point initial: (V1={x[i]:.2f}, V2={y[i]:.2f}, V3={z[i]:.2f}, W={w[i]:.2f})<br>"
+                f"Point final: (V1'={x_prime[i]:.2f}, V2'={y_prime[i]:.2f}, V3'={z_prime[i]:.2f}, W'={w_prime[i]:.2f})"
+            )
                     ))
                 
                 # Ajout de la pyramide
