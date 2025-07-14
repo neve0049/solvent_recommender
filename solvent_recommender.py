@@ -397,8 +397,8 @@ elif modules[selected_module] == "quaternary":
                         marker=dict(size=5, color=color),
                         name=f"Ligne {i+1}",
                         hovertemplate=(
-                f"Point initial: (V1={x[i]:.2f}, V2={y[i]:.2f}, V3={z[i]:.2f}, W={w[i]:.2f})<br>"
-                f"Point final: (V1'={x_prime[i]:.2f}, V2'={y_prime[i]:.2f}, V3'={z_prime[i]:.2f}, W'={w_prime[i]:.2f})"
+                f"Point 1: (V1={x[i]:.2f}, V2={y[i]:.2f}, V3={z[i]:.2f}, V4={w[i]:.2f})<br>"
+                f"Point 2: (V1'={x_prime[i]:.2f}, V2'={y_prime[i]:.2f}, V3'={z_prime[i]:.2f}, V4'={w_prime[i]:.2f})"
             )
                     ))
                 
