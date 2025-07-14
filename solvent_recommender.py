@@ -357,151 +357,324 @@ elif modules[selected_module] == "quaternary":
     
     with st.expander("ℹ️ Instructions"):
         st.write("""
-        1. Téléversez un fichier Excel avec les colonnes: V1, V2, V3, V1', V2', V3'
-        2. Le diagramme quaternaire 3D sera généré automatiquement
-        3. Utilisez les outils pour explorer la visualisation
+        1. Choose your data source type (Volume data or COSMO-RS data)
+        2. Upload the corresponding file
+        3. The quaternary 3D diagram will be generated automatically
+        4. Use the tools to explore the visualization
         """)
     
-    uploaded_file = st.file_uploader("Téléversez votre fichier Excel", type=["xlsx"])
+    # Ajout du choix du type de données
+    data_source = st.radio(
+        "Select data source type",
+        ["Import Volume data", "Import COSMO-RS data"],
+        index=0,
+        horizontal=True
+    )
     
-    if uploaded_file is not None:
-        try:
-            data = pd.read_excel(uploaded_file)
-            required_columns = ['V1', 'V2', 'V3', "V1'", "V2'", "V3'"]
-            
-            if not all(col in data.columns for col in required_columns):
-                st.error(f"Colonnes requises manquantes: {', '.join(required_columns)}")
-            else:
-                # Préparation des données
-                x = data['V1']
-                y = data['V2']
-                z = data['V3']
-                w = 1 - x - y - z
-                x_prime = data["V1'"]
-                y_prime = data["V2'"]
-                z_prime = data["V3'"]
-                w_prime = 1 - x_prime - y_prime - z_prime
+    if data_source == "Import Volume data":
+        uploaded_file = st.file_uploader("Upload your Excel file with volume data", type=["xlsx"])
+        
+        if uploaded_file is not None:
+            try:
+                data = pd.read_excel(uploaded_file)
+                required_columns = ['V1', 'V2', 'V3', "V1'", "V2'", "V3'"]
                 
-                # Création du graphique 3D
-                fig = go.Figure()
-                
-                # Ajout des lignes
-                for i in range(len(x)):
-                    color = f'rgb({np.random.randint(50,200)},{np.random.randint(50,200)},{np.random.randint(50,200)})'
-                    fig.add_trace(go.Scatter3d(
-                        x=[x[i], x_prime[i]],
-                        y=[y[i], y_prime[i]],
-                        z=[z[i], z_prime[i]],
-                        mode='lines+markers',
-                        line=dict(width=4, color=color),
-                        marker=dict(size=5, color=color),
-                        name=f"Ligne {i+1}",
-                        hovertemplate=(
-                f"Point 1: (V1={x[i]:.2f}, V2={y[i]:.2f}, V3={z[i]:.2f}, V4={w[i]:.2f})<br>"
-                f"Point 2: (V1'={x_prime[i]:.2f}, V2'={y_prime[i]:.2f}, V3'={z_prime[i]:.2f}, V4'={w_prime[i]:.2f})"
-            )
-                    ))
-                
-                # Ajout de la pyramide
-                pyramid_vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
-                pyramid_edges = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]]
-                
-                for edge in pyramid_edges:
-                    fig.add_trace(go.Scatter3d(
-                        x=[pyramid_vertices[edge[0]][0], pyramid_vertices[edge[1]][0]],
-                        y=[pyramid_vertices[edge[0]][1], pyramid_vertices[edge[1]][1]],
-                        z=[pyramid_vertices[edge[0]][2], pyramid_vertices[edge[1]][2]],
-                        mode='lines',
-                        line=dict(color='black', width=3),
-                        showlegend=False,
-                        hoverinfo='none'
-                    ))
-                
-                # Mise en forme
-                fig.update_layout(
-                    scene=dict(
-                        xaxis_title=data.iloc[0, 9] if len(data.columns) > 9 else 'V1',
-                        yaxis_title=data.iloc[0, 10] if len(data.columns) > 10 else 'V2',
-                        zaxis_title=data.iloc[0, 11] if len(data.columns) > 11 else 'V3',
-                        xaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
-                        yaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
-                        zaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
-                    ),
-                    margin=dict(l=0, r=0, b=0, t=30),
-                    height=700,
-                    title={
-                        'text': f"{data.iloc[0, 9] if len(data.columns) > 9 else 'V1'} / {data.iloc[0, 10] if len(data.columns) > 10 else 'V2'} / {data.iloc[0, 11] if len(data.columns) > 11 else 'V3'} / {data.iloc[0, 12] if len(data.columns) > 12 else 'V4'}",
-                        'x': 0.5,
-                        'font': {'size': 16}
-                    }
+                if not all(col in data.columns for col in required_columns):
+                    st.error(f"Missing required columns: {', '.join(required_columns)}")
+                else:
+                    # Le reste du code existant pour Volume data...
+                    # Préparation des données
+                    x = data['V1']
+                    y = data['V2']
+                    z = data['V3']
+                    w = 1 - x - y - z
+                    x_prime = data["V1'"]
+                    y_prime = data["V2'"]
+                    z_prime = data["V3'"]
+                    w_prime = 1 - x_prime - y_prime - z_prime
+                    
+                    # Création du graphique 3D
+                    fig = go.Figure()
+                    
+                    # Ajout des lignes
+                    for i in range(len(x)):
+                        color = f'rgb({np.random.randint(50,200)},{np.random.randint(50,200)},{np.random.randint(50,200)})'
+                        fig.add_trace(go.Scatter3d(
+                            x=[x[i], x_prime[i]],
+                            y=[y[i], y_prime[i]],
+                            z=[z[i], z_prime[i]],
+                            mode='lines+markers',
+                            line=dict(width=4, color=color),
+                            marker=dict(size=5, color=color),
+                            name=f"Line {i+1}",
+                            hovertemplate=(
+                    f"Point 1: (V1={x[i]:.2f}, V2={y[i]:.2f}, V3={z[i]:.2f}, V4={w[i]:.2f})<br>"
+                    f"Point 2: (V1'={x_prime[i]:.2f}, V2'={y_prime[i]:.2f}, V3'={z_prime[i]:.2f}, V4'={w_prime[i]:.2f})"
                 )
+                        ))
+                    
+                    # Ajout de la pyramide
+                    pyramid_vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+                    pyramid_edges = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]]
+                    
+                    for edge in pyramid_edges:
+                        fig.add_trace(go.Scatter3d(
+                            x=[pyramid_vertices[edge[0]][0], pyramid_vertices[edge[1]][0]],
+                            y=[pyramid_vertices[edge[0]][1], pyramid_vertices[edge[1]][1]],
+                            z=[pyramid_vertices[edge[0]][2], pyramid_vertices[edge[1]][2]],
+                            mode='lines',
+                            line=dict(color='black', width=3),
+                            showlegend=False,
+                            hoverinfo='none'
+                        ))
+                    
+                    # Mise en forme
+                    fig.update_layout(
+                        scene=dict(
+                            xaxis_title=data.iloc[0, 9] if len(data.columns) > 9 else 'V1',
+                            yaxis_title=data.iloc[0, 10] if len(data.columns) > 10 else 'V2',
+                            zaxis_title=data.iloc[0, 11] if len(data.columns) > 11 else 'V3',
+                            xaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
+                            yaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
+                            zaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
+                        ),
+                        margin=dict(l=0, r=0, b=0, t=30),
+                        height=700,
+                        title={
+                            'text': f"{data.iloc[0, 9] if len(data.columns) > 9 else 'V1'} / {data.iloc[0, 10] if len(data.columns) > 10 else 'V2'} / {data.iloc[0, 11] if len(data.columns) > 11 else 'V3'} / {data.iloc[0, 12] if len(data.columns) > 12 else 'V4'}",
+                            'x': 0.5,
+                            'font': {'size': 16}
+                        }
+                    )
+                    
+                    # Affichage du graphique
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+            except Exception as e:
+                st.error(f"Error processing file: {str(e)}")
+    
+    elif data_source == "Import COSMO-RS data":
+        uploaded_file = st.file_uploader("Upload your COSMO-RS Excel file", type=["xls", "xlsx"])
+        
+        if uploaded_file is not None:
+            try:
+                # Lire le fichier COSMO-RS
+                df = pd.read_excel(uploaded_file, sheet_name=0, header=None)
                 
-                # Affichage du graphique
-                st.plotly_chart(fig, use_container_width=True)
+                # Extraire les noms des composés
+                col1_name = df.iloc[5, 1]  # Contenu cellule B6
+                col2_name = df.iloc[4, 1]   # Contenu cellule B5
+                col3_name = df.iloc[3, 1]   # Contenu cellule B4
+                col4_name = df.iloc[2, 1]   # Contenu cellule B3
                 
-                # Options avancées
-                st.subheader("🎚 Contrôles 3D")
-                col1, col2 = st.columns(2)
+                # Recharger les données en sautant les en-têtes initiaux
+                data_df = pd.read_excel(uploaded_file, sheet_name=0, header=5)
+                
+                # Créer un nouveau dataframe avec les colonnes demandées
+                result_df = pd.DataFrame()
+                
+                # Remplir les colonnes selon les numéros dans la colonne A (Nr)
+                result_df[col1_name] = data_df.loc[data_df.iloc[:, 0] == 4].iloc[:, 3].reset_index(drop=True)
+                result_df[col2_name] = data_df.loc[data_df.iloc[:, 0] == 3].iloc[:, 3].reset_index(drop=True)
+                result_df[col3_name] = data_df.loc[data_df.iloc[:, 0] == 2].iloc[:, 3].reset_index(drop=True)
+                result_df[col4_name] = data_df.loc[data_df.iloc[:, 0] == 1].iloc[:, 3].reset_index(drop=True)
+                
+                # Ajouter la colonne Total
+                result_df['Total'] = result_df.sum(axis=1)
+                
+                # Demander les densités
+                st.subheader("🔢 Enter densities (g/mL)")
+                col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    # Animation de rotation
-                    if st.button("🔄 Lancer l'animation de rotation"):
-                        fig.update_layout(
-                            scene=dict(
-                                camera=dict(
-                                    up=dict(x=0, y=0, z=1),
-                                    center=dict(x=0, y=0, z=0),
-                                    eye=dict(x=1.25, y=1.25, z=1.25)
-                                )
-                            ),
-                            updatemenus=[dict(
-                                type="buttons",
-                                buttons=[dict(
-                                    label="▶️",
-                                    method="animate",
-                                    args=[None, {"frame": {"duration": 50, "redraw": True}}]
-                                )]
-                        )])
-                        
-                        frames = []
-                        for angle in range(0, 360, 5):
-                            frames.append(go.Frame(
-                                layout=dict(
-                                    scene_camera=dict(
-                                        eye=dict(
-                                            x=1.25 * np.cos(np.radians(angle)),
-                                            y=1.25 * np.sin(np.radians(angle)),
-                                            z=1.25
-                                        )
-                                    )
-                                )
-                            ))
-                        
-                        fig.frames = frames
-                        st.plotly_chart(fig, use_container_width=True)
-                
+                    p1 = st.number_input(f"Density of {col1_name}", min_value=0.1, max_value=2.0, value=1.0, step=0.01)
                 with col2:
-                    # Export des données
-                    st.write("**Exporter le diagramme:**")
-                    export_format = st.radio("Format", ["HTML", "PNG"], key="quat_export", horizontal=True)
+                    p2 = st.number_input(f"Density of {col2_name}", min_value=0.1, max_value=2.0, value=1.0, step=0.01)
+                with col3:
+                    p3 = st.number_input(f"Density of {col3_name}", min_value=0.1, max_value=2.0, value=1.0, step=0.01)
+                with col4:
+                    p4 = st.number_input(f"Density of {col4_name}", min_value=0.1, max_value=2.0, value=1.0, step=0.01)
+                
+                if st.button("Calculate volumes"):
+                    # Calculer les volumes V1-V4
+                    result_df['V1'] = result_df[col1_name] / p1
+                    result_df['V2'] = result_df[col2_name] / p2
+                    result_df['V3'] = result_df[col3_name] / p3
+                    result_df['V4'] = result_df[col4_name] / p4
                     
-                    if st.button("Générer l'export", key="quat_export_btn"):
-                        if export_format == "HTML":
-                            html = fig.to_html()
-                            st.download_button(
-                                label="Télécharger HTML",
-                                data=html,
-                                file_name="quaternary_diagram.html",
-                                mime="text/html"
+                    # Ajouter les colonnes W'
+                    result_df["W1'"] = data_df.loc[data_df.iloc[:, 0] == 4].iloc[:, 6].reset_index(drop=True)
+                    result_df["W2'"] = data_df.loc[data_df.iloc[:, 0] == 3].iloc[:, 6].reset_index(drop=True)
+                    result_df["W3'"] = data_df.loc[data_df.iloc[:, 0] == 2].iloc[:, 6].reset_index(drop=True)
+                    result_df["W4'"] = data_df.loc[data_df.iloc[:, 0] == 1].iloc[:, 6].reset_index(drop=True)
+                    
+                    # Calculer les volumes V'
+                    result_df["V1'"] = result_df["W1'"] / p1
+                    result_df["V2'"] = result_df["W2'"] / p2
+                    result_df["V3'"] = result_df["W3'"] / p3
+                    result_df["V4'"] = result_df["W4'"] / p4
+                    
+                    # Normaliser les volumes pour qu'ils somment à 1
+                    total_v = result_df[['V1', 'V2', 'V3', 'V4']].sum(axis=1)
+                    result_df['V1'] = result_df['V1'] / total_v
+                    result_df['V2'] = result_df['V2'] / total_v
+                    result_df['V3'] = result_df['V3'] / total_v
+                    result_df['V4'] = result_df['V4'] / total_v
+                    
+                    total_v_prime = result_df[["V1'", "V2'", "V3'", "V4'"]].sum(axis=1)
+                    result_df["V1'"] = result_df["V1'"] / total_v_prime
+                    result_df["V2'"] = result_df["V2'"] / total_v_prime
+                    result_df["V3'"] = result_df["V3'"] / total_v_prime
+                    result_df["V4'"] = result_df["V4'"] / total_v_prime
+                    
+                    # Afficher les données calculées
+                    st.subheader("📊 Calculated Volume Data")
+                    st.dataframe(result_df)
+                    
+                    # Téléchargement des résultats
+                    csv = result_df.to_csv(index=False)
+                    st.download_button(
+                        label="Download calculated data as CSV",
+                        data=csv,
+                        file_name="cosmo_rs_volume_data.csv",
+                        mime="text/csv"
+                    )
+                    
+                    # Préparation des données pour le graphique
+                    x = result_df['V1']
+                    y = result_df['V2']
+                    z = result_df['V3']
+                    w = 1 - x - y - z
+                    x_prime = result_df["V1'"]
+                    y_prime = result_df["V2'"]
+                    z_prime = result_df["V3'"]
+                    w_prime = 1 - x_prime - y_prime - z_prime
+                    
+                    # Création du graphique 3D
+                    fig = go.Figure()
+                    
+                    # Ajout des lignes
+                    for i in range(len(x)):
+                        color = f'rgb({np.random.randint(50,200)},{np.random.randint(50,200)},{np.random.randint(50,200)})'
+                        fig.add_trace(go.Scatter3d(
+                            x=[x[i], x_prime[i]],
+                            y=[y[i], y_prime[i]],
+                            z=[z[i], z_prime[i]],
+                            mode='lines+markers',
+                            line=dict(width=4, color=color),
+                            marker=dict(size=5, color=color),
+                            name=f"Line {i+1}",
+                            hovertemplate=(
+                    f"Point 1: (V1={x[i]:.2f}, V2={y[i]:.2f}, V3={z[i]:.2f}, V4={w[i]:.2f})<br>"
+                    f"Point 2: (V1'={x_prime[i]:.2f}, V2'={y_prime[i]:.2f}, V3'={z_prime[i]:.2f}, V4'={w_prime[i]:.2f})"
+                )
+                        ))
+                    
+                    # Ajout de la pyramide
+                    pyramid_vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+                    pyramid_edges = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]]
+                    
+                    for edge in pyramid_edges:
+                        fig.add_trace(go.Scatter3d(
+                            x=[pyramid_vertices[edge[0]][0], pyramid_vertices[edge[1]][0]],
+                            y=[pyramid_vertices[edge[0]][1], pyramid_vertices[edge[1]][1]],
+                            z=[pyramid_vertices[edge[0]][2], pyramid_vertices[edge[1]][2]],
+                            mode='lines',
+                            line=dict(color='black', width=3),
+                            showlegend=False,
+                            hoverinfo='none'
+                        ))
+                    
+                    # Mise en forme
+                    fig.update_layout(
+                        scene=dict(
+                            xaxis_title=col1_name,
+                            yaxis_title=col2_name,
+                            zaxis_title=col3_name,
+                            xaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
+                            yaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
+                            zaxis=dict(gridcolor='lightgray', backgroundcolor='rgba(0,0,0,0)'),
+                        ),
+                        margin=dict(l=0, r=0, b=0, t=30),
+                        height=700,
+                        title={
+                            'text': f"{col1_name} / {col2_name} / {col3_name} / {col4_name}",
+                            'x': 0.5,
+                            'font': {'size': 16}
+                        }
+                    )
+                    
+                    # Affichage du graphique
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+            except Exception as e:
+                st.error(f"Error processing COSMO-RS file: {str(e)}")
+    
+    # Options avancées (commun aux deux types de données)
+    if uploaded_file is not None and ((data_source == "Import Volume data" and 'fig' in locals()) or 
+                                    (data_source == "Import COSMO-RS data" and 'fig' in locals() and st.session_state.get('calculated', False))):
+        st.subheader("🎚 3D Controls")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Animation de rotation
+            if st.button("🔄 Start rotation animation"):
+                fig.update_layout(
+                    scene=dict(
+                        camera=dict(
+                            up=dict(x=0, y=0, z=1),
+                            center=dict(x=0, y=0, z=0),
+                            eye=dict(x=1.25, y=1.25, z=1.25)
+                        )
+                    ),
+                    updatemenus=[dict(
+                        type="buttons",
+                        buttons=[dict(
+                            label="▶️",
+                            method="animate",
+                            args=[None, {"frame": {"duration": 50, "redraw": True}}]
+                        )]
+                    )])
+                
+                frames = []
+                for angle in range(0, 360, 5):
+                    frames.append(go.Frame(
+                        layout=dict(
+                            scene_camera=dict(
+                                eye=dict(
+                                    x=1.25 * np.cos(np.radians(angle)),
+                                    y=1.25 * np.sin(np.radians(angle)),
+                                    z=1.25
+                                )
                             )
-                        elif export_format == "PNG":
-                            img_bytes = fig.to_image(format="png")
-                            st.download_button(
-                                label="Télécharger PNG",
-                                data=img_bytes,
-                                file_name="quaternary_diagram.png",
-                                mime="image/png"
-                            )
+                        )
+                    ))
+                
+                fig.frames = frames
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Export des données
+            st.write("**Export diagram:**")
+            export_format = st.radio("Format", ["HTML", "PNG"], key="quat_export", horizontal=True)
+            
+            if st.button("Generate export", key="quat_export_btn"):
+                if export_format == "HTML":
+                    html = fig.to_html()
+                    st.download_button(
+                        label="Download HTML",
+                        data=html,
+                        file_name="quaternary_diagram.html",
+                        mime="text/html"
+                    )
+                elif export_format == "PNG":
+                    img_bytes = fig.to_image(format="png")
+                    st.download_button(
+                        label="Download PNG",
+                        data=img_bytes,
+                        file_name="quaternary_diagram.png",
+                        mime="image/png"
+                    )
         
         except Exception as e:
             st.error(f"Erreur lors du traitement du fichier: {str(e)}")
