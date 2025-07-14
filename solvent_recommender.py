@@ -105,7 +105,7 @@ if uploaded_file is not None:
                 type_labels = ['Non-Green', 'Green', 'Simulated']
                 
                 # Bouton ON/OFF pour les noms des composés
-                show_names = st.toggle("Afficher les noms des composés", value=False)
+                show_names = st.toggle("Display compound names", value=False)
                 
                 # Création du graphique 3D
                 fig = go.Figure()
@@ -176,14 +176,14 @@ if uploaded_file is not None:
                 with col1:
                     # Recherche de composé
                     compound_name = st.selectbox(
-                        "Rechercher un composé", 
+                        "Search compound", 
                         [""] + sorted(names.unique()),
                         index=0
                     )
                     
                     if compound_name:
                         idx = names[names == compound_name].index[0]
-                        st.success(f"Composé sélectionné: {compound_name}")
+                        st.success(f"Selected compound: {compound_name}")
                         
                         # Affichage des informations
                         st.write(f"**CAS:** {CAS[idx]}")
@@ -191,13 +191,13 @@ if uploaded_file is not None:
                         st.write(f"**Rayon d'interaction (R0):** {radii[idx]:.2f}")
                         
                         # Bouton pour ouvrir dans PubChem
-                        if st.button(f"🔎 Rechercher {compound_name} sur PubChem"):
+                        if st.button(f"🔎 Search {compound_name} on PubChem"):
                             url = f"https://pubchem.ncbi.nlm.nih.gov/#query={CAS[idx]}"
                             webbrowser.open_new_tab(url)
                 
                 with col2:
                     # Visualisation de la sphère d'interaction
-                    show_sphere = st.checkbox("Afficher la sphère d'interaction")
+                    show_sphere = st.checkbox("Display Hansen Sphere")
                     
                     if show_sphere and compound_name:
                         idx = names[names == compound_name].index[0]
@@ -217,20 +217,20 @@ if uploaded_file is not None:
                             z=sphere_z,
                             colorscale=[[0, 'rgba(255, 255, 0, 0.1)'], [1, 'rgba(255, 255, 0, 0.1)']],
                             showscale=False,
-                            name=f"Sphère d'interaction: {compound_name}"
+                            name=f"Hansen Sphere: {compound_name}"
                         ))
                         
                         st.plotly_chart(fig, use_container_width=True)
                 
                 # Options d'export
-                st.subheader("📤 Export des Données")
-                export_format = st.radio("Format d'export", ["PNG", "HTML", "CSV"])
+                st.subheader("📤 Export data")
+                export_format = st.radio("Export format", ["PNG", "HTML", "CSV"])
                 
-                if st.button("Exporter les résultats"):
+                if st.button("Export the results"):
                     if export_format == "PNG":
                         img_bytes = fig.to_image(format="png")
                         st.download_button(
-                            label="Télécharger PNG",
+                            label="Download PNG",
                             data=img_bytes,
                             file_name="hansen_parameters.png",
                             mime="image/png"
@@ -238,7 +238,7 @@ if uploaded_file is not None:
                     elif export_format == "HTML":
                         html = fig.to_html()
                         st.download_button(
-                            label="Télécharger HTML",
+                            label="Download HTML",
                             data=html,
                             file_name="hansen_parameters.html",
                             mime="text/html"
@@ -246,20 +246,20 @@ if uploaded_file is not None:
                     elif export_format == "CSV":
                         csv = data.to_csv(index=False)
                         st.download_button(
-                            label="Télécharger CSV",
+                            label="Download CSV",
                             data=csv,
                             file_name="hansen_data.csv",
                             mime="text/csv"
                         )
         
         except Exception as e:
-            st.error(f"Erreur lors du traitement du fichier: {str(e)}")
+            st.error(f"Error processing file: {str(e)}")
 
 # ==============================================
 # Module Diagramme de Phase Ternaire
 # ==============================================
 elif modules[selected_module] == "ternary":
-    st.header("📐 Diagramme de Phase Ternaire Interactif")
+    st.header("📐 Ternary Phase Diagram")
 
     with st.expander("ℹ️ Instructions"):
         st.write("""
