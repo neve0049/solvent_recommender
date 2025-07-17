@@ -327,8 +327,8 @@ elif modules[selected_module] == "ternary":
                     # Affichage dans Streamlit
                     st.pyplot(fig)
                     
-        except Exception as e:
-             st.error(f"Error processing file: {str(e)}")
+            except Exception as e:
+                 st.error(f"Error processing file: {str(e)}")
     
     elif data_source == "Import COSMO-RS data":
         uploaded_file = st.file_uploader("Upload your COSMO-RS Excel file", type=["xls", "xlsx"])
@@ -514,8 +514,8 @@ elif modules[selected_module] == "ternary":
                     mime="image/svg+xml"
                 )
         
-        except Exception as e:
-            st.error(f"Error processing file: {str(e)}")
+    except Exception as e:
+        st.error(f"Error processing file: {str(e)}")
 # ==============================================
 # Module Diagramme de Phase Quaternaire
 # ==============================================
