@@ -707,7 +707,7 @@ def show_quaternary_diagram(df_system, df_filtered, system_name, selected_compos
                 st.markdown(f"""
                 **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
                 **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
-                **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f} 
+                **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}       
                 **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}
                 """)
 
