@@ -513,9 +513,7 @@ elif modules[selected_module] == "ternary":
                     file_name="ternary_diagram.svg",
                     mime="image/svg+xml"
                 )
-        
-    except Exception as e:
-        st.error(f"Error processing file: {str(e)}")
+
 # ==============================================
 # Module Diagramme de Phase Quaternaire
 # ==============================================
