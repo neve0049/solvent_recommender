@@ -565,7 +565,7 @@ def show_ternary_diagram(df_system, df_filtered, system_name, selected_compositi
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.subheader("Compositions des phases")
+        st.subheader("Phases composition")
         
         phase_data = create_phase_display(df_filtered.iloc[0], labels)
         
