@@ -10,3 +10,4 @@ PyPDF2
 plotly
 kaleido
 xlrd
+re
