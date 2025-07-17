@@ -134,7 +134,7 @@ def show_home_page():
     st.image("CPCDISKGCPC.png")
     
     st.markdown("""
-    ### Fonctionnalités principales :
+    ### Main features :
     - **KD Database Explorer** : Explore a database containing 200+ common compounds and their distribution coefficient KD in different biphasic solvent systems
     - **Ternary Phase Diagrams** : Database of ternary phase diagrams
     - **Quaternary Phase Diagrams** : Database of quaternary phase diagrams
