@@ -698,17 +698,17 @@ def show_quaternary_diagram(df_system, df_filtered, system_name, selected_compos
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.subheader("Compositions des phases")
+        st.subheader("Phases composition")
         
         phase_data = create_phase_display(df_filtered.iloc[0], labels, is_quaternary=True)
         
         for phase, color in [('UP', 'red'), ('LP', 'blue')]:
             with st.expander(f"Phase {phase}", expanded=True):
                 st.markdown(f"""
-                **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}%  
-                **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}%  
-                **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}%  
-                **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}%
+                **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
+                **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
+                **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f} 
+                **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}
                 """)
 
 def show_dbdq_page():
