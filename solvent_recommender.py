@@ -881,10 +881,10 @@ def show_dbdq_page():
             for phase, color in [('UP', 'red'), ('LP', 'blue')]:
                 with st.expander(f"Phase {phase}", expanded=True):
                     st.markdown(f"""
-                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}%  
-                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}%  
-                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}%  
-                    **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}%
+                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
+                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
+                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}       
+                    **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}
                     """)
 
             # Bouton pour explorer dans KD Database
