@@ -131,7 +131,7 @@ def show_home_page():
     Bienvenue sur Quaterco, la plateforme complète pour l'analyse des diagrammes de phase et des paramètres de solubilité.
     """)
     
-    st.image("https://via.placeholder.com/1200x400?text=Quaterco+Scientific+Analysis+Platform")
+    st.image("CPCDISKGCPC.png")
     
     st.markdown("""
     ### Fonctionnalités principales :
