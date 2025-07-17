@@ -8,6 +8,7 @@ import webbrowser
 import base64
 import PyPDF2
 import os
+import re
 
 # Configuration de la page
 st.set_page_config(
