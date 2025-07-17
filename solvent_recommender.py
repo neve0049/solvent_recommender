@@ -518,7 +518,7 @@ def show_ternary_diagram(df_system, df_filtered, system_name, selected_compositi
             x=[df_filtered[f'%Vol3 - {phase}'].values[0]],
             y=[df_filtered[f'%Vol2 - {phase}'].values[0]],
             mode='markers',
-            name=f'Sélection {phase}',
+            name=f'Selection {phase}',
             marker=dict(
                 color='black',
                 size=16,
@@ -662,7 +662,7 @@ def show_quaternary_diagram(df_system, df_filtered, system_name, selected_compos
             y=[df_filtered[f'y_{phase.lower()}'].values[0]],
             z=[df_filtered[f'z_{phase.lower()}'].values[0]],
             mode='markers',
-            name=f'Sélection {phase}',
+            name=f'Selection {phase}',
             marker=dict(
                 color='black',
                 size=10,
@@ -729,7 +729,7 @@ def show_dbdq_page():
     
     # Sélection de la feuille
     selected_sheet = st.selectbox(
-        "Sélectionnez un système",
+        "Select a biphasic solvent system",
         sheet_names,
         index=sheet_names.index(initial_sheet) if initial_sheet in sheet_names else 0
     )
