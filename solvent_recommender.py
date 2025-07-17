@@ -128,7 +128,7 @@ def get_file_download_link(file_data, filename, text):
 def show_home_page():
     st.title("Quaterco - Toolbox for data visualization of predictive methodologies")
     st.markdown("""
-    Welcome to Quaterco! A toolbox allowing you to access a database of phase diagrams for biphasic solvent systems and the distribution coefficient KD of commmon compounds found in plants for those systems. You can also  upload your excel files from COSMOthermX and your list of HSP to visalize them.
+    Welcome to Quaterco! A toolbox allowing you to access a database of phase diagrams for biphasic solvent systems and the distribution coefficient KD of commmon compounds found in plants for those systems. You can also  upload your excel files from COSMOthermX and your list of HSP to visualize them.
     """)
     
     st.image("CPCDISKGCPC.png")
