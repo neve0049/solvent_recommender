@@ -10,4 +10,4 @@ PyPDF2
 plotly
 kaleido
 xlrd
-regex
+re
