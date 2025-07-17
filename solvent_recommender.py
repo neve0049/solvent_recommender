@@ -254,7 +254,7 @@ if uploaded_file is not None:
         
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
-
+            
 # ==============================================
 # Module Diagramme de Phase Ternaire
 # ==============================================
@@ -263,89 +263,256 @@ elif modules[selected_module] == "ternary":
 
     with st.expander("ℹ️ Instructions"):
         st.write("""
-        Upload the excel file containing your data. The file must contain the following columns:
-        V1, V2, V1', V2', names of solvents must be in cells: H2, I2 and J2
+        1. Choose your data source type (Volume data or COSMO-RS data)
+        2. Upload the corresponding file
+        3. The ternary diagram will be generated automatically
+        4. Use the tools to explore the visualization
         """)
     
-    uploaded_file = st.file_uploader("Upload your excel file", type=["xlsx"])
+    # Ajout du choix du type de données
+    data_source = st.radio(
+        "Select data source type",
+        ["Import Volume data", "Import COSMO-RS data"],
+        index=0,
+        horizontal=True
+    )
     
-    if uploaded_file is not None:
-        try:
-            data = pd.read_excel(uploaded_file)
-            required_columns = ['V1', 'V2', "V1'", "V2'"]
+    if data_source == "Import Volume data":
+        uploaded_file = st.file_uploader("Upload your Excel file with volume data", type=["xlsx"])
+        
+        if uploaded_file is not None:
+            try:
+                data = pd.read_excel(uploaded_file)
+                required_columns = ['V1', 'V2', "V1'", "V2'"]
+                
+                if not all(col in data.columns for col in required_columns):
+                    st.error(f"Missing columns: {', '.join(required_columns)}")
+                else:
+                    # Le reste du code existant pour Volume data...
+                    v1 = data['V1']
+                    v2 = data['V2']
+                    v1_prime = data["V1'"]
+                    v2_prime = data["V2'"]
+                    
+                    # Création de la figure matplotlib
+                    fig, ax = plt.subplots(figsize=(8, 8))
+                    
+                    # Dessin du triangle rectangle
+                    ax.plot([0, 1, 0, 0], [0, 0, 1, 0], 'k-', linewidth=2)
+                    
+                    # Ajout des lignes et points
+                    for i in range(len(v1)):
+                        color = np.random.rand(3,)
+                        ax.plot([v1[i], v1_prime[i]], [v2[i], v2_prime[i]], 
+                                color=color, marker='o', markersize=6, linewidth=2)
+                    
+                    # Configuration des axes
+                    ax.set_xlim(0, 1)
+                    ax.set_ylim(0, 1)
+                    ax.set_aspect('equal', 'box')
+                    
+                    # Labels des axes
+                    ax.set_xlabel(data.iloc[0, 7] if len(data.columns) > 7 else 'Solvent 1', fontsize=12)
+                    ax.set_ylabel(data.iloc[0, 8] if len(data.columns) > 8 else 'Solvent 2', fontsize=12)
+                    
+                    # Ajout de la grille
+                    ax.grid(True, linestyle='--', alpha=0.5)
+                    ax.set_xticks(np.arange(0, 1.1, 0.1))
+                    ax.set_yticks(np.arange(0, 1.1, 0.1))
+                    
+                    # Titre
+                    title = f"{data.iloc[0, 7] if len(data.columns) > 7 else 'Solvent 1'} / {data.iloc[0, 8] if len(data.columns) > 8 else 'Solvent 2'} / {data.iloc[0, 9] if len(data.columns) > 9 else 'Solvent 3'}"
+                    ax.set_title(title, fontsize=14, pad=20)
+                    
+                    # Affichage dans Streamlit
+                    st.pyplot(fig)
+                    
+            except Exception as e:
+                st.error(f"Error processing file: {str(e)}")
+    
+    elif data_source == "Import COSMO-RS data":
+        uploaded_file = st.file_uploader("Upload your COSMO-RS Excel file", type=["xls", "xlsx"])
+        
+        if uploaded_file is not None:
+            try:
+                # Lire le fichier COSMO-RS
+                df = pd.read_excel(uploaded_file, header=None)
+                
+                # Extraire les métadonnées depuis la cellule A1
+                a1_content = str(df.iloc[0, 0])
+                
+                # Fonction pour extraire les composés
+                def extract_compounds(a1_content):
+                    compounds_match = re.search(r"compounds job \d+ :(.+?)(;|$)(?=\s*\w+ job \d+ :|$)", 
+                                            a1_content, re.IGNORECASE | re.DOTALL)
+                    if not compounds_match:
+                        raise ValueError("Compounds section not found in A1")
+                    
+                    compounds_section = compounds_match.group(1)
+                    compounds = re.findall(r"([^;(]+)\s*\((\d+)\)", compounds_section)
+                    
+                    if len(compounds) < 3:
+                        raise ValueError(f"Only {len(compounds)} compounds found (3 expected)")
+                    
+                    compounds_sorted = sorted(compounds, key=lambda x: int(x[1]))
+                    return [c[0].strip().replace(" ", "_").lower() for c in compounds_sorted[:3]]
+                
+                # Fonction pour extraire les masses moléculaires
+                def extract_molecular_weights(a1_content):
+                    mw_match = re.search(r"molecular weights ([0-9.]+)\s*\(1\)\s*([0-9.]+)\s*\(2\)\s*([0-9.]+)\s*\(3\)", 
+                                        a1_content, re.IGNORECASE)
+                    if not mw_match:
+                        raise ValueError("Molecular weights not found in A1")
+                    return [float(mw_match.group(1)), float(mw_match.group(2)), float(mw_match.group(3))]
+                
+                # Extraire les composés et masses moléculaires
+                COMPOUNDS = extract_compounds(a1_content)
+                MOLECULAR_WEIGHTS = extract_molecular_weights(a1_content)
+                
+                st.success(f"Detected compounds: {COMPOUNDS}")
+                st.success(f"Molecular weights: {MOLECULAR_WEIGHTS}")
+                
+                # Saisie des densités
+                st.subheader("🔢 Enter densities (g/mL)")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    p1 = st.number_input(f"Density of {COMPOUNDS[0]}", min_value=0.1, max_value=2.0, value=1.0, step=0.01)
+                with col2:
+                    p2 = st.number_input(f"Density of {COMPOUNDS[1]}", min_value=0.1, max_value=2.0, value=1.0, step=0.01)
+                with col3:
+                    p3 = st.number_input(f"Density of {COMPOUNDS[2]}", min_value=0.1, max_value=2.0, value=1.0, step=0.01)
+                
+                if st.button("Calculate volumes"):
+                    # Charger les données (en sautant les en-têtes)
+                    data_df = pd.read_excel(uploaded_file, header=39)
+                    
+                    # Vérifier les colonnes nécessaires
+                    PHASE1_COLS = ["x`(1)", "x`(2)", "x`(3)"]
+                    PHASE2_COLS = ["x``(1)", "x``(2)", "x``(3)"]
+                    
+                    if not all(col in data_df.columns for col in PHASE1_COLS + PHASE2_COLS):
+                        st.error("Required columns not found in the file")
+                    else:
+                        # Calculer les valeurs
+                        results = pd.DataFrame()
+                        densities = [p1, p2, p3]
+                        
+                        # Fonction pour calculer les valeurs
+                        def calculate_values(df, results, x_cols, mw, densities, phase_suffix=""):
+                            for i in range(3):
+                                x_col = x_cols[i]
+                                x = pd.to_numeric(df[x_col], errors='coerce')
+                                results[f"x{i+1}{phase_suffix}"] = x
+                                results[f"g{i+1}{phase_suffix}"] = x * mw[i]
+                                results[f"V{i+1}{phase_suffix}"] = results[f"g{i+1}{phase_suffix}"] / densities[i]
+                                mask = (x == 0)
+                                results.loc[mask, f"g{i+1}{phase_suffix}"] = 0
+                                results.loc[mask, f"V{i+1}{phase_suffix}"] = 0
+                            return results
+                        
+                        # Calcul pour les deux phases
+                        results = calculate_values(data_df, results, PHASE1_COLS, MOLECULAR_WEIGHTS, densities)
+                        results = calculate_values(data_df, results, PHASE2_COLS, MOLECULAR_WEIGHTS, densities, "'")
+                        
+                        # Normalisation
+                        def normalize_phase(df, cols):
+                            sum_values = df[cols].sum(axis=1)
+                            for col in cols:
+                                mask = (sum_values > 0)
+                                df.loc[mask, col] = df.loc[mask, col] / sum_values[mask]
+                            return df
+                        
+                        v_cols_phase1 = [f"V{i+1}" for i in range(3)]
+                        v_cols_phase2 = [f"V{i+1}'" for i in range(3)]
+                        
+                        results = normalize_phase(results, v_cols_phase1)
+                        results = normalize_phase(results, v_cols_phase2)
+                        
+                        # Afficher les résultats
+                        st.subheader("📊 Calculated Volume Data")
+                        st.dataframe(results)
+                        
+                        # Téléchargement des résultats
+                        csv = results.to_csv(index=False)
+                        st.download_button(
+                            label="Download calculated data as CSV",
+                            data=csv,
+                            file_name="ternary_cosmo_rs_volume_data.csv",
+                            mime="text/csv"
+                        )
+                        
+                        # Création du diagramme ternaire
+                        fig, ax = plt.subplots(figsize=(8, 8))
+                        
+                        # Dessin du triangle rectangle
+                        ax.plot([0, 1, 0, 0], [0, 0, 1, 0], 'k-', linewidth=2)
+                        
+                        # Ajout des lignes et points
+                        for i in range(len(results)):
+                            color = np.random.rand(3,)
+                            ax.plot(
+                                [results.iloc[i]['V1'], results.iloc[i]["V1'"]],
+                                [results.iloc[i]['V2'], results.iloc[i]["V2'"]],
+                                color=color, marker='o', markersize=6, linewidth=2
+                            )
+                        
+                        # Configuration des axes
+                        ax.set_xlim(0, 1)
+                        ax.set_ylim(0, 1)
+                        ax.set_aspect('equal', 'box')
+                        
+                        # Labels des axes
+                        ax.set_xlabel(COMPOUNDS[0], fontsize=12)
+                        ax.set_ylabel(COMPOUNDS[1], fontsize=12)
+                        
+                        # Ajout de la grille
+                        ax.grid(True, linestyle='--', alpha=0.5)
+                        ax.set_xticks(np.arange(0, 1.1, 0.1))
+                        ax.set_yticks(np.arange(0, 1.1, 0.1))
+                        
+                        # Titre
+                        title = f"{COMPOUNDS[0]} / {COMPOUNDS[1]} / {COMPOUNDS[2]}"
+                        ax.set_title(title, fontsize=14, pad=20)
+                        
+                        # Affichage dans Streamlit
+                        st.pyplot(fig)
             
-            if not all(col in data.columns for col in required_columns):
-                st.error(f"Missing columns: {', '.join(required_columns)}")
-            else:
-                # Préparation des données
-                v1 = data['V1']
-                v2 = data['V2']
-                v1_prime = data["V1'"]
-                v2_prime = data["V2'"]
-                
-                # Création de la figure matplotlib
-                fig, ax = plt.subplots(figsize=(8, 8))
-                
-                # Dessin du triangle rectangle
-                ax.plot([0, 1, 0, 0], [0, 0, 1, 0], 'k-', linewidth=2)
-                
-                # Ajout des lignes et points
-                for i in range(len(v1)):
-                    color = np.random.rand(3,)
-                    ax.plot([v1[i], v1_prime[i]], [v2[i], v2_prime[i]], 
-                            color=color, marker='o', markersize=6, linewidth=2)
-                
-                # Configuration des axes
-                ax.set_xlim(0, 1)
-                ax.set_ylim(0, 1)
-                ax.set_aspect('equal', 'box')
-                
-                # Labels des axes
-                ax.set_xlabel(data.iloc[0, 7] if len(data.columns) > 7 else 'Solvant 1', fontsize=12)
-                ax.set_ylabel(data.iloc[0, 8] if len(data.columns) > 8 else 'Solvant 2', fontsize=12)
-                
-                # Ajout de la grille
-                ax.grid(True, linestyle='--', alpha=0.5)
-                ax.set_xticks(np.arange(0, 1.1, 0.1))
-                ax.set_yticks(np.arange(0, 1.1, 0.1))
-                
-                # Titre
-                title = f"{data.iloc[0, 7] if len(data.columns) > 7 else 'Solvant 1'} / {data.iloc[0, 8] if len(data.columns) > 8 else 'Solvant 2'} / {data.iloc[0, 9] if len(data.columns) > 9 else 'Solvant 3'}"
-                ax.set_title(title, fontsize=14, pad=20)
-                
-                # Affichage dans Streamlit
-                st.pyplot(fig)
-                
-                # Options d'export
-                st.subheader("📤 Export Options")
-                export_format = st.selectbox("Export format", ["PNG", "PDF", "SVG"])
-                
-                if st.button("Export the diagram"):
-                    buf = BytesIO()
-                    if export_format == "PNG":
-                        fig.savefig(buf, format="png", dpi=300)
-                        st.download_button(
-                            label="Download PNG",
-                            data=buf.getvalue(),
-                            file_name="ternary_diagram.png",
-                            mime="image/png"
-                        )
-                    elif export_format == "PDF":
-                        fig.savefig(buf, format="pdf")
-                        st.download_button(
-                            label="Download PDF",
-                            data=buf.getvalue(),
-                            file_name="ternary_diagram.pdf",
-                            mime="application/pdf"
-                        )
-                    elif export_format == "SVG":
-                        fig.savefig(buf, format="svg")
-                        st.download_button(
-                            label="Download SVG",
-                            data=buf.getvalue(),
-                            file_name="ternary_diagram.svg",
-                            mime="image/svg+xml"
-                        )
+            except Exception as e:
+                st.error(f"Error processing COSMO-RS file: {str(e)}")
+    
+    # Options d'export (commun aux deux types de données)
+    if uploaded_file is not None and ((data_source == "Import Volume data" and 'fig' in locals()) or 
+                                    (data_source == "Import COSMO-RS data" and 'fig' in locals() and st.session_state.get('calculated', False))):
+        st.subheader("📤 Export Options")
+        export_format = st.selectbox("Export format", ["PNG", "PDF", "SVG"])
+        
+        if st.button("Export the diagram"):
+            buf = BytesIO()
+            if export_format == "PNG":
+                fig.savefig(buf, format="png", dpi=300)
+                st.download_button(
+                    label="Download PNG",
+                    data=buf.getvalue(),
+                    file_name="ternary_diagram.png",
+                    mime="image/png"
+                )
+            elif export_format == "PDF":
+                fig.savefig(buf, format="pdf")
+                st.download_button(
+                    label="Download PDF",
+                    data=buf.getvalue(),
+                    file_name="ternary_diagram.pdf",
+                    mime="application/pdf"
+                )
+            elif export_format == "SVG":
+                fig.savefig(buf, format="svg")
+                st.download_button(
+                    label="Download SVG",
+                    data=buf.getvalue(),
+                    file_name="ternary_diagram.svg",
+                    mime="image/svg+xml"
+                )
         
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
