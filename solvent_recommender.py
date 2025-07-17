@@ -175,11 +175,11 @@ def show_kddb_page():
         matching_sheets = [sheet for sheet in sheet_names if search_value in sheet.lower()]
         
         if not matching_sheets:
-            st.warning("Aucune correspondance trouvée.")
+            st.warning("No corresponding compound found")
         else:
             # Affichage des résultats
             selected_sheet = st.radio(
-                "Feuilles correspondantes:",
+                "Corresponding sheets:",
                 matching_sheets,
                 key="sheet_selection"
             )
@@ -199,7 +199,7 @@ def show_kddb_page():
                     st.error("Les colonnes requises ne sont pas toutes présentes dans la feuille.")
                 else:
                     # Sélection interactive par ligne
-                    st.subheader("Sélectionnez une entrée")
+                    st.subheader("Select a composition")
                     
                     # Création d'un dataframe pour la sélection
                     selection_df = df[available_cols].copy()
@@ -236,7 +236,7 @@ def show_kddb_page():
                         selected_composition = str(selected_row['Composition'])  # Convertir en string pour la comparaison
                         
                         # Déterminer si c'est un système ternaire ou quaternaire
-                        is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
+                        is_quaternary = st.checkbox("Check if quaternary solvent system", key="quaternary_check")
                         
                         # Chargement des données du système correspondant
                         try:
@@ -245,7 +245,7 @@ def show_kddb_page():
                             all_sheets = pd.read_excel(target_file, sheet_name=None)
                             
                             if system_name not in all_sheets:
-                                st.error(f"Aucune donnée trouvée pour le système {system_name}")
+                                st.error(f"No data found for the system {system_name}")
                             else:
                                 df_system = all_sheets[system_name]
                                 # Convertir la colonne Composition en string pour la comparaison
@@ -288,7 +288,7 @@ def show_dbdt_page():
         
         # Sélection de la feuille
         selected_sheet = st.selectbox(
-            "Sélectionnez un système",
+            "Select a biphasic solvent system",
             sheet_names,
             key="dbdt_sheet_select"
         )
