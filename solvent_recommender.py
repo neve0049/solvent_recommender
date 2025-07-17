@@ -126,16 +126,16 @@ def get_file_download_link(file_data, filename, text):
 # =============================================
 
 def show_home_page():
-    st.title("Quaterco - Plateforme d'analyse scientifique")
-    st.markdown("""
-    Bienvenue sur Quaterco, la plateforme complète pour l'analyse des diagrammes de phase et des paramètres de solubilité.
+    st.title("Quaterco - Toolbox for data visualization of predictive methodologies")
+    st.markdown("""h
+    Welcome to Quaterco, a toolbox allowing you to access a database of phase diagrams for biphasic solvent systems, the distribution coefficient KD of commmon compounds found in plants but also allowing you to upload your excel files from COSMOthermX to visalize them.
     """)
     
     st.image("CPCDISKGCPC.png")
     
     st.markdown("""
     ### Fonctionnalités principales :
-    - **KD Database Explorer** : Explore a database containing 200+ common compounds and their distribution coefficient in different biphasic solvent systems
+    - **KD Database Explorer** : Explore a database containing 200+ common compounds and their distribution coefficient KD in different biphasic solvent systems
     - **Ternary Phase Diagrams** : Database of ternary phase diagrams
     - **Quaternary Phase Diagrams** : Database of quaternary phase diagrams
     - **Hansen Solubility Parameters** : Plot your HSP by uploading your excel file
