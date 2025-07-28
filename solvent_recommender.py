@@ -280,109 +280,132 @@ def show_add_data_page():
     st.title("➕ Add Data to KD Database")
     
     # Empêcher la redirection
-    if st.session_state.get('form_submitted', False):
-        st.session_state.form_submitted = False
+    if st.session_state.get('add_data_submitted', False):
+        st.session_state.add_data_submitted = False
         st.experimental_rerun()
 
     with st.expander("ℹ️ Instructions", expanded=True):
         st.write("""
-        Use this form to add new data to the KD Database (KDDB.xlsx).  
-        Please fill in all required fields.  
-        The data will be appended to the existing Excel file.
+        **Complete guide to add new compounds:**  
+        1. Fill all required fields (*)  
+        2. Double-check your values  
+        3. Submit - data will be permanently added to KDDB.xlsx  
+        4. Verify in the database explorer  
         """)
-    
-    # Formulaire pour ajouter des données
+
+    # Formulaire complet
     with st.form(key='add_data_form', clear_on_submit=True):
-        st.subheader("Compound Information")
-        compound_name = st.text_input("Compound Name*")
-        smiles = st.text_input("SMILES (optional)")
-        log_p_pubchem = st.text_input("Log P (Pubchem) (optional)", value="")
-        log_p_cosmo = st.text_input("Log P (COSMO-RS) (optional)", value="")
+        cols = st.columns(2)
         
-        st.subheader("System Information")
-        system_name = st.text_input("System*")
-        composition = st.text_input("Composition*")
-        log_kd = st.text_input("Log KD Value*")
+        with cols[0]:
+            st.subheader("Compound Information")
+            compound_name = st.text_input("Name*", key='compound_name')
+            smiles = st.text_input("SMILES", key='smiles')
+            cas_number = st.text_input("CAS Number", key='cas_number')
+            
+        with cols[1]:
+            st.subheader("Physical Properties")
+            log_p_pubchem = st.text_input("LogP (PubChem)", key='log_p_pubchem')
+            log_p_cosmo = st.text_input("LogP (COSMO-RS)", key='log_p_cosmo')
+            mol_weight = st.text_input("Molecular Weight", key='mol_weight')
         
-        submitted = st.form_submit_button("Add Data to KDDB")
+        st.subheader("Partition Data")
+        system_cols = st.columns(3)
+        with system_cols[0]:
+            system_name = st.text_input("System*", key='system_name')
+        with system_cols[1]:
+            composition = st.text_input("Composition*", key='composition')
+        with system_cols[2]:
+            log_kd = st.text_input("Log KD*", key='log_kd')
+        
+        # Bouton de soumission
+        submitted = st.form_submit_button("💾 Save to Database")
         
         if submitted:
-            if not all([compound_name, system_name, composition, log_kd]):
-                st.error("Please fill in all required fields (*)")
+            required_fields = {
+                "Compound Name": compound_name,
+                "System": system_name,
+                "Composition": composition,
+                "Log KD": log_kd
+            }
+            
+            missing_fields = [name for name, value in required_fields.items() if not value]
+            if missing_fields:
+                st.error(f"Missing required fields: {', '.join(missing_fields)}")
             else:
                 try:
-                    # Chemin absolu du fichier
+                    # Chemin absolu et vérification
                     excel_path = os.path.abspath(EXCEL_PATH)
-                    st.info(f"File path: {excel_path}")
+                    if not os.path.exists(excel_path):
+                        # Créer un nouveau fichier avec une structure vide
+                        pd.DataFrame().to_excel(excel_path, engine='openpyxl')
                     
-                    # Créer un nouveau fichier temporaire
-                    temp_path = excel_path + ".tmp"
+                    # Préparation des données
+                    new_entry = {
+                        "Compound": compound_name,
+                        "SMILES": smiles,
+                        "CAS Number": cas_number,
+                        "Log P (Pubchem)": log_p_pubchem,
+                        "Log P (COSMO-RS)": log_p_cosmo,
+                        "Molecular Weight": mol_weight,
+                        "System": system_name,
+                        "Composition": composition,
+                        "Log KD": log_kd,
+                        "Added Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
                     
-                    # Copier le fichier original ou créer un nouveau
-                    if os.path.exists(excel_path):
-                        shutil.copyfile(excel_path, temp_path)
-                        wb = load_workbook(temp_path)
+                    # Solution robuste avec openpyxl
+                    from openpyxl import load_workbook
+                    
+                    # Charger le workbook existant
+                    wb = load_workbook(excel_path)
+                    
+                    # Vérifier si le composé existe déjà
+                    sheet_name = f"KD_{compound_name[:25]}"  # Nom court pour Excel
+                    if sheet_name in wb.sheetnames:
+                        # Lire les données existantes
+                        existing_data = pd.read_excel(excel_path, sheet_name=sheet_name)
+                        # Ajouter la nouvelle entrée
+                        updated_data = pd.concat([existing_data, pd.DataFrame([new_entry])], ignore_index=True)
                     else:
-                        wb = Workbook()
-                        del wb[wb.sheetnames[0]]
+                        # Créer une nouvelle feuille
+                        updated_data = pd.DataFrame([new_entry])
                     
-                    # Trouver le dernier numéro de feuille
-                    sheet_numbers = []
-                    for name in wb.sheetnames:
-                        try:
-                            num = int(name.split(':')[0].strip())
-                            sheet_numbers.append(num)
-                        except:
-                            continue
+                    # Sauvegarde robuste
+                    with pd.ExcelWriter(
+                        excel_path,
+                        engine='openpyxl',
+                        mode='a',
+                        if_sheet_exists='replace'
+                    ) as writer:
+                        updated_data.to_excel(writer, sheet_name=sheet_name, index=False)
                     
-                    next_num = max(sheet_numbers) + 1 if sheet_numbers else 1
-                    new_sheet_name = f"{next_num}:\n\"{compound_name}\""
+                    # Message de succès détaillé
+                    success_msg = st.empty()
+                    with success_msg.container():
+                        st.success("✅ Data successfully saved to database!")
+                        st.balloons()
+                        st.write(f"**Compound:** {compound_name}")
+                        st.write(f"**System:** {system_name} {composition}")
+                        st.write(f"**Log KD:** {log_kd}")
+                        st.write(f"Saved in sheet: {sheet_name}")
                     
-                    # Ajouter la nouvelle feuille
-                    ws = wb.create_sheet(new_sheet_name)
-                    headers = ['Compound', 'SMILES', 'Log P (Pubchem)', 
-                              'Log P (COSMO-RS)', 'Log KD', 'System', 'Composition']
-                    ws.append(headers)
-                    ws.append([
-                        compound_name,
-                        smiles if smiles else '',
-                        log_p_pubchem if log_p_pubchem else '',
-                        log_p_cosmo if log_p_cosmo else '',
-                        log_kd,
-                        system_name,
-                        composition
-                    ])
-                    
-                    # Sauvegarder et remplacer l'original
-                    wb.save(temp_path)
-                    wb.close()
-                    
-                    # Remplacer le fichier original
-                    os.replace(temp_path, excel_path)
-                    
-                    st.success(f"✅ Success! Added new sheet: {new_sheet_name}")
-                    st.balloons()
-                    
-                    # Afficher les données ajoutées
-                    st.subheader("Added Data")
-                    st.table(pd.DataFrame([{
-                        'Compound': compound_name,
-                        'SMILES': smiles,
-                        'Log P (Pubchem)': log_p_pubchem,
-                        'Log P (COSMO-RS)': log_p_cosmo,
-                        'Log KD': log_kd,
-                        'System': system_name,
-                        'Composition': composition
-                    }]))
-                    
-                    # Mettre à jour l'état
-                    st.session_state.form_submitted = True
+                    # Forcer le rechargement
+                    st.session_state.add_data_submitted = True
+                    time.sleep(2)
                     st.experimental_rerun()
                     
+                except PermissionError:
+                    st.error("""
+                    ❌ Could not save - file may be locked.  
+                    Please ensure:
+                    1. KDDB.xlsx is not open in Excel
+                    2. The file is not read-only
+                    3. The app has write permissions
+                    """)
                 except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
+                    st.error(f"❌ Critical error: {str(e)}")
+                    st.code(traceback.format_exc(), language='python')
                     
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
