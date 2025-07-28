@@ -10,7 +10,6 @@ import base64
 import PyPDF2
 import os
 import re
-from openpyxl import load_workbook
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -276,137 +275,6 @@ def show_kddb_page():
             st.session_state.search_triggered = False
             st.rerun()
 
-def show_add_data_page():
-    st.title("➕ Add Data to KD Database")
-    
-    # Empêcher la redirection
-    if st.session_state.get('add_data_submitted', False):
-        st.session_state.add_data_submitted = False
-        st.experimental_rerun()
-
-    with st.expander("ℹ️ Instructions", expanded=True):
-        st.write("""
-        **Complete guide to add new compounds:**  
-        1. Fill all required fields (*)  
-        2. Double-check your values  
-        3. Submit - data will be permanently added to KDDB.xlsx  
-        4. Verify in the database explorer  
-        """)
-
-    # Formulaire complet
-    with st.form(key='add_data_form', clear_on_submit=True):
-        cols = st.columns(2)
-        
-        with cols[0]:
-            st.subheader("Compound Information")
-            compound_name = st.text_input("Name*", key='compound_name')
-            smiles = st.text_input("SMILES", key='smiles')
-            cas_number = st.text_input("CAS Number", key='cas_number')
-            
-        with cols[1]:
-            st.subheader("Physical Properties")
-            log_p_pubchem = st.text_input("LogP (PubChem)", key='log_p_pubchem')
-            log_p_cosmo = st.text_input("LogP (COSMO-RS)", key='log_p_cosmo')
-            mol_weight = st.text_input("Molecular Weight", key='mol_weight')
-        
-        st.subheader("Partition Data")
-        system_cols = st.columns(3)
-        with system_cols[0]:
-            system_name = st.text_input("System*", key='system_name')
-        with system_cols[1]:
-            composition = st.text_input("Composition*", key='composition')
-        with system_cols[2]:
-            log_kd = st.text_input("Log KD*", key='log_kd')
-        
-        # Bouton de soumission
-        submitted = st.form_submit_button("💾 Save to Database")
-        
-        if submitted:
-            required_fields = {
-                "Compound Name": compound_name,
-                "System": system_name,
-                "Composition": composition,
-                "Log KD": log_kd
-            }
-            
-            missing_fields = [name for name, value in required_fields.items() if not value]
-            if missing_fields:
-                st.error(f"Missing required fields: {', '.join(missing_fields)}")
-            else:
-                try:
-                    # Chemin absolu et vérification
-                    excel_path = os.path.abspath(EXCEL_PATH)
-                    if not os.path.exists(excel_path):
-                        # Créer un nouveau fichier avec une structure vide
-                        pd.DataFrame().to_excel(excel_path, engine='openpyxl')
-                    
-                    # Préparation des données
-                    new_entry = {
-                        "Compound": compound_name,
-                        "SMILES": smiles,
-                        "CAS Number": cas_number,
-                        "Log P (Pubchem)": log_p_pubchem,
-                        "Log P (COSMO-RS)": log_p_cosmo,
-                        "Molecular Weight": mol_weight,
-                        "System": system_name,
-                        "Composition": composition,
-                        "Log KD": log_kd,
-                        "Added Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    
-                    # Solution robuste avec openpyxl
-                    from openpyxl import load_workbook
-                    
-                    # Charger le workbook existant
-                    wb = load_workbook(excel_path)
-                    
-                    # Vérifier si le composé existe déjà
-                    sheet_name = f"KD_{compound_name[:25]}"  # Nom court pour Excel
-                    if sheet_name in wb.sheetnames:
-                        # Lire les données existantes
-                        existing_data = pd.read_excel(excel_path, sheet_name=sheet_name)
-                        # Ajouter la nouvelle entrée
-                        updated_data = pd.concat([existing_data, pd.DataFrame([new_entry])], ignore_index=True)
-                    else:
-                        # Créer une nouvelle feuille
-                        updated_data = pd.DataFrame([new_entry])
-                    
-                    # Sauvegarde robuste
-                    with pd.ExcelWriter(
-                        excel_path,
-                        engine='openpyxl',
-                        mode='a',
-                        if_sheet_exists='replace'
-                    ) as writer:
-                        updated_data.to_excel(writer, sheet_name=sheet_name, index=False)
-                    
-                    # Message de succès détaillé
-                    success_msg = st.empty()
-                    with success_msg.container():
-                        st.success("✅ Data successfully saved to database!")
-                        st.balloons()
-                        st.write(f"**Compound:** {compound_name}")
-                        st.write(f"**System:** {system_name} {composition}")
-                        st.write(f"**Log KD:** {log_kd}")
-                        st.write(f"Saved in sheet: {sheet_name}")
-                    
-                    # Forcer le rechargement
-                    st.session_state.add_data_submitted = True
-                    time.sleep(2)
-                    st.experimental_rerun()
-                    
-                except PermissionError:
-                    st.error("""
-                    ❌ Could not save - file may be locked.  
-                    Please ensure:
-                    1. KDDB.xlsx is not open in Excel
-                    2. The file is not read-only
-                    3. The app has write permissions
-                    """)
-                except Exception as e:
-                    st.error(f"❌ Critical error: {str(e)}")
-                    st.code(traceback.format_exc(), language='python')
-                    
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
@@ -1831,8 +1699,6 @@ def main():
             st.session_state.current_page = "ternary_plot"
         if st.button("🧊 Quaternary Plot Diagram"):
             st.session_state.current_page = "quaternary_plot"
-        if st.button("➕ Add Data to KDDB"):
-            st.session_state.current_page = "add_data"
     
     # Router vers la page active
     try:
@@ -1850,9 +1716,6 @@ def main():
             show_ternary_plot_page()
         elif st.session_state.current_page == "quaternary_plot":
             show_quaternary_plot_page()
-        elif st.session_state.current_page == "add_data":
-            show_add_data_page()
-    
     except Exception as e:
         st.error(f"Une erreur est survenue: {str(e)}")
         st.session_state.current_page = "home"
