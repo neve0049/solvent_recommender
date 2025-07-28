@@ -11,7 +11,7 @@ import PyPDF2
 import os
 import re
 import openpyxl
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -277,82 +277,120 @@ def show_kddb_page():
             st.session_state.search_triggered = False
             st.rerun()
 
-def show_add_kddb_page():
-    st.title("➕ Add Data to KD Database")
-    
-    with st.expander("ℹ️ Instructions"):
-        st.write("""
-        Use this form to add new data to the KD Database. Please fill in all required fields.
-        The data will be saved to the KDDB.xlsx file after validation.
-        """)
-    
-    # Formulaire pour ajouter des données
-    with st.form(key="add_kddb_form"):
-        st.subheader("Compound Information")
-        compound_name = st.text_input("Compound Name*", help="Name of the compound to add").strip()
-        cas_number = st.text_input("CAS Number", help="Optional CAS registry number").strip()
-        log_p_pubchem = st.number_input("LogP (PubChem)", format="%.2f", help="Optional PubChem LogP value")
-        log_p_cosmo = st.number_input("LogP (COSMO-RS)", format="%.2f", help="Optional COSMO-RS LogP value")
+def save_new_version(compound_data):
+    """Crée une nouvelle version complète du fichier Excel"""
+    try:
+        # Créer un nouveau classeur Excel
+        wb = Workbook()
+        wb.remove(wb.active)  # Supprime la feuille par défaut
         
-        st.subheader("System Information")
-        system_name = st.text_input("System Name*", help="Name of the solvent system (e.g. 'Heptane-Ethanol-Water')").strip()
-        composition = st.text_input("Composition*", help="Composition description (e.g. '5-3-2')").strip()
-        log_kd = st.number_input("Log KD Value*", format="%.2f", help="Measured or calculated Log KD value")
-        
-        submitted = st.form_submit_button("Submit Data")
-    
-    if submitted:
-        # Validation des champs obligatoires
-        if not compound_name or not system_name or not composition:
-            st.error("Please fill in all required fields (marked with *)")
-        else:
-            try:
-                # Vérifier si le fichier existe
-                if not os.path.exists(EXCEL_PATH):
-                    # Créer un nouveau fichier si nécessaire
-                    wb = Workbook()
-                    wb.save(EXCEL_PATH)
-                
-                # Charger le fichier Excel
-                wb = load_workbook(EXCEL_PATH)
-                
-                # Vérifier si la feuille existe déjà
-                if compound_name in wb.sheetnames:
-                    ws = wb[compound_name]
-                    max_row = ws.max_row + 1
-                else:
-                    # Créer une nouvelle feuille
-                    ws = wb.create_sheet(title=compound_name)
-                    # Ajouter les en-têtes
-                    ws.append(['System', 'Composition', 'Log KD', 'Log P (Pubchem)', 'Log P (COSMO-RS)'])
-                    max_row = 2
-                
-                # Ajouter les nouvelles données
-                ws.cell(row=max_row, column=1, value=system_name)
-                ws.cell(row=max_row, column=2, value=composition)
-                ws.cell(row=max_row, column=3, value=log_kd)
-                ws.cell(row=max_row, column=4, value=log_p_pubchem if pd.notna(log_p_pubchem) else "")
-                ws.cell(row=max_row, column=5, value=log_p_cosmo if pd.notna(log_p_cosmo) else "")
-                
-                # Sauvegarder les modifications
-                wb.save(EXCEL_PATH)
-                wb.close()
-                
-                st.success(f"Data successfully added to {compound_name} sheet!")
-                st.balloons()
-                
-                # Option pour voir les données ajoutées
-                if st.button("View in KD Database"):
-                    st.session_state.current_page = "kddb"
-                    st.session_state.search_query = compound_name
-                    st.session_state.search_triggered = True
-                    st.rerun()
+        # Pour chaque composé (anciens + nouveau)
+        for compound_name, data in compound_data.items():
+            ws = wb.create_sheet(compound_name)
             
-            except PermissionError:
-                st.error("Could not save data. Please make sure the KDDB.xlsx file is not open in another program.")
-            except Exception as e:
-                st.error(f"Error saving data: {str(e)}")
-                st.error("Please check the file format and try again.")
+            # Entêtes
+            ws.append(['System', 'Composition', 'Log KD', 'Log P (Pubchem)', 'Log P (COSMO-RS)'])
+            
+            # Données
+            for entry in data:
+                ws.append([
+                    entry['system_name'],
+                    entry['composition'],
+                    entry['log_kd'],
+                    entry.get('log_p_pubchem', ''),
+                    entry.get('log_p_cosmo', '')
+                ])
+        
+        # Sauvegarde atomique
+        temp_path = f"temp_{EXCEL_PATH}"
+        wb.save(temp_path)
+        wb.close()
+        
+        # Remplace l'ancien fichier
+        if os.path.exists(EXCEL_PATH):
+            os.remove(EXCEL_PATH)
+        os.rename(temp_path, EXCEL_PATH)
+        
+        return True
+    except Exception as e:
+        st.error(f"Erreur : {str(e)}")
+        return False
+
+def load_existing_data():
+    """Charge toutes les données existantes"""
+    data = {}
+    if os.path.exists(EXCEL_PATH):
+        wb = load_workbook(EXCEL_PATH)
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            sheet_data = []
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if row[0]:  # Vérifie que System n'est pas vide
+                    sheet_data.append({
+                        'system_name': row[0],
+                        'composition': row[1],
+                        'log_kd': row[2],
+                        'log_p_pubchem': row[3],
+                        'log_p_cosmo': row[4]
+                    })
+            data[sheet_name] = sheet_data
+        wb.close()
+    return data
+
+def show_add_kddb_page():
+    st.title("🔄 Replace KD Database")
+    
+    # Charger données existantes
+    existing_data = load_existing_data()
+    
+    with st.form(key="replace_form"):
+        st.subheader("Nouveau Composé")
+        compound_name = st.text_input("Nom du composé*").strip()
+        system_name = st.text_input("Système*").strip()
+        composition = st.text_input("Composition*").strip()
+        log_kd = st.number_input("Log KD*", format="%.2f")
+        log_p_pubchem = st.number_input("LogP PubChem", format="%.2f")
+        log_p_cosmo = st.number_input("LogP COSMO", format="%.2f")
+        
+        submitted = st.form_submit_button("Remplacer la Base de Données")
+        
+        if submitted:
+            if not all([compound_name, system_name, composition]):
+                st.error("Champs obligatoires manquants")
+            else:
+                # Ajoute le nouveau composé aux données existantes
+                new_entry = {
+                    'system_name': system_name,
+                    'composition': composition,
+                    'log_kd': log_kd,
+                    'log_p_pubchem': log_p_pubchem,
+                    'log_p_cosmo': log_p_cosmo
+                }
+                
+                if compound_name in existing_data:
+                    existing_data[compound_name].append(new_entry)
+                else:
+                    existing_data[compound_name] = [new_entry]
+                
+                # Sauvegarde la nouvelle version complète
+                if save_new_version(existing_data):
+                    st.success("Base de données complètement remplacée!")
+                    st.balloons()
+                    
+                    # Téléchargement immédiat
+                    with open(EXCEL_PATH, "rb") as f:
+                        st.download_button(
+                            "Télécharger la Nouvelle Version",
+                            f,
+                            file_name="KDDB_Nouvelle_Version.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+
+# Ajoutez cette fonction à votre navigation
+def main():
+    # ... (votre navigation existante)
+    if st.session_state.current_page == "replace_kddb":
+        show_add_kddb_page()
 
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
