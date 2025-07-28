@@ -279,11 +279,11 @@ def show_kddb_page():
 def show_add_data_page():
     st.title("➕ Add Data to KD Database")
     
-    # Vérifier si on a été redirigé depuis le formulaire
-    if 'form_submitted' in st.session_state and st.session_state.form_submitted:
+    # Empêcher la redirection
+    if st.session_state.get('form_submitted', False):
         st.session_state.form_submitted = False
         st.experimental_rerun()
-    
+
     with st.expander("ℹ️ Instructions", expanded=True):
         st.write("""
         Use this form to add new data to the KD Database (KDDB.xlsx).  
@@ -292,105 +292,97 @@ def show_add_data_page():
         """)
     
     # Formulaire pour ajouter des données
-    with st.form(key='add_data_form'):
+    with st.form(key='add_data_form', clear_on_submit=True):
         st.subheader("Compound Information")
-        compound_name = st.text_input("Compound Name*", help="Name of the compound to add")
-        smiles = st.text_input("SMILES", help="SMILES notation (optional)")
-        log_p_pubchem = st.text_input("Log P (Pubchem)", value="", help="Log P value from PubChem (optional)")
-        log_p_cosmo = st.text_input("Log P (COSMO-RS)", value="", help="Log P value from COSMO-RS (optional)")
+        compound_name = st.text_input("Compound Name*")
+        smiles = st.text_input("SMILES (optional)")
+        log_p_pubchem = st.text_input("Log P (Pubchem) (optional)", value="")
+        log_p_cosmo = st.text_input("Log P (COSMO-RS) (optional)", value="")
         
         st.subheader("System Information")
-        system_name = st.text_input("System*", help="Name of the biphasic solvent system (e.g. 'Arizona')")
-        composition = st.text_input("Composition*", help="Composition description")
-        log_kd = st.text_input("Log KD Value*", value="", help="Logarithm of the distribution coefficient")
+        system_name = st.text_input("System*")
+        composition = st.text_input("Composition*")
+        log_kd = st.text_input("Log KD Value*")
         
-        # Bouton de soumission
         submitted = st.form_submit_button("Add Data to KDDB")
         
         if submitted:
-            # Validation des champs obligatoires
-            if not compound_name or not system_name or not composition or not log_kd:
+            if not all([compound_name, system_name, composition, log_kd]):
                 st.error("Please fill in all required fields (*)")
             else:
                 try:
                     # Chemin absolu du fichier
                     excel_path = os.path.abspath(EXCEL_PATH)
-                    st.info(f"Saving to: {excel_path}")
+                    st.info(f"File path: {excel_path}")
                     
-                    # Création des données
-                    new_data = {
-                        'Compound': compound_name,
-                        'SMILES': smiles if smiles else '',
-                        'Log P (Pubchem)': log_p_pubchem if log_p_pubchem else '',
-                        'Log P (COSMO-RS)': log_p_cosmo if log_p_cosmo else '',
-                        'Log KD': log_kd,
-                        'System': system_name,
-                        'Composition': composition
-                    }
+                    # Créer un nouveau fichier temporaire
+                    temp_path = excel_path + ".tmp"
                     
-                    # Solution robuste avec openpyxl
-                    from openpyxl import load_workbook, Workbook
-                    
-                    # Charger ou créer le workbook
+                    # Copier le fichier original ou créer un nouveau
                     if os.path.exists(excel_path):
-                        wb = load_workbook(excel_path)
+                        shutil.copyfile(excel_path, temp_path)
+                        wb = load_workbook(temp_path)
                     else:
                         wb = Workbook()
-                        # Supprimer la feuille par défaut si elle existe
-                        if 'Sheet' in wb.sheetnames:
-                            del wb['Sheet']
+                        del wb[wb.sheetnames[0]]
                     
-                    # Trouver le prochain numéro de feuille
-                    max_num = 0
+                    # Trouver le dernier numéro de feuille
+                    sheet_numbers = []
                     for name in wb.sheetnames:
                         try:
                             num = int(name.split(':')[0].strip())
-                            if num > max_num:
-                                max_num = num
+                            sheet_numbers.append(num)
                         except:
                             continue
                     
-                    next_num = max_num + 1
+                    next_num = max(sheet_numbers) + 1 if sheet_numbers else 1
                     new_sheet_name = f"{next_num}:\n\"{compound_name}\""
                     
-                    # Créer la nouvelle feuille
+                    # Ajouter la nouvelle feuille
                     ws = wb.create_sheet(new_sheet_name)
-                    
-                    # Écrire les en-têtes
                     headers = ['Compound', 'SMILES', 'Log P (Pubchem)', 
                               'Log P (COSMO-RS)', 'Log KD', 'System', 'Composition']
                     ws.append(headers)
+                    ws.append([
+                        compound_name,
+                        smiles if smiles else '',
+                        log_p_pubchem if log_p_pubchem else '',
+                        log_p_cosmo if log_p_cosmo else '',
+                        log_kd,
+                        system_name,
+                        composition
+                    ])
                     
-                    # Écrire les données
-                    ws.append([new_data[h] for h in headers])
-                    
-                    # Sauvegarder
-                    wb.save(excel_path)
+                    # Sauvegarder et remplacer l'original
+                    wb.save(temp_path)
                     wb.close()
                     
-                    # Message de succès
-                    st.success(f"✅ Data successfully added as new sheet: {new_sheet_name}")
+                    # Remplacer le fichier original
+                    os.replace(temp_path, excel_path)
+                    
+                    st.success(f"✅ Success! Added new sheet: {new_sheet_name}")
                     st.balloons()
                     
-                    # Afficher un aperçu
-                    st.subheader("Added Data Preview")
-                    st.table(pd.DataFrame([new_data]))
+                    # Afficher les données ajoutées
+                    st.subheader("Added Data")
+                    st.table(pd.DataFrame([{
+                        'Compound': compound_name,
+                        'SMILES': smiles,
+                        'Log P (Pubchem)': log_p_pubchem,
+                        'Log P (COSMO-RS)': log_p_cosmo,
+                        'Log KD': log_kd,
+                        'System': system_name,
+                        'Composition': composition
+                    }]))
                     
-                    # Debug
-                    st.info("Current sheets in KDDB.xlsx:")
-                    wb = load_workbook(excel_path)
-                    st.write(wb.sheetnames)
-                    wb.close()
-                    
-                    # Empêcher la redirection
+                    # Mettre à jour l'état
                     st.session_state.form_submitted = True
                     st.experimental_rerun()
                     
-                except PermissionError:
-                    st.error("❌ Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
                 except Exception as e:
-                    st.error(f"❌ An error occurred: {str(e)}")
-                    st.error(f"Full traceback: {traceback.format_exc()}")
+                    st.error(f"❌ Error: {str(e)}")
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
                     
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
