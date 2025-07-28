@@ -280,9 +280,9 @@ def show_kddb_editor():
     st.info("✏️ You can add new entries to the KD database here. Existing data cannot be modified.")
     
     try:
-        # Charger le fichier KDDB
-        excel_file = pd.ExcelFile(EXCEL_PATH)
-        sheet_names = excel_file.sheet_names
+        # Charger toutes les feuilles du fichier
+        all_sheets = pd.read_excel(EXCEL_PATH, sheet_name=None)
+        sheet_names = list(all_sheets.keys())
         
         # Sélection de la feuille à compléter
         selected_sheet = st.selectbox(
@@ -291,12 +291,9 @@ def show_kddb_editor():
             key="kddb_sheet_select"
         )
         
-        # Charger les données de la feuille sélectionnée
-        df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
-        
         # Afficher les données existantes (en lecture seule)
         st.subheader(f"Existing data for {selected_sheet} (read-only)")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(all_sheets[selected_sheet], use_container_width=True)
         
         # Formulaire pour ajouter de nouvelles entrées
         st.subheader("Add new entry")
@@ -329,24 +326,28 @@ def show_kddb_editor():
                         'Log P (COSMO-RS)': new_log_p_cosmo
                     }
                     
-                    # Ajouter la nouvelle ligne au dataframe
-                    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                    # Ajouter la nouvelle ligne à la feuille sélectionnée
+                    all_sheets[selected_sheet] = pd.concat(
+                        [all_sheets[selected_sheet], pd.DataFrame([new_row])],
+                        ignore_index=True
+                    )
                     
-                    # Sauvegarder dans le fichier Excel
+                    # Réécrire TOUT le fichier Excel avec les modifications
                     with pd.ExcelWriter(
                         EXCEL_PATH,
                         engine='openpyxl',
-                        mode='a',  # Append mode
-                        if_sheet_exists='replace'  # Remplace la feuille existante
+                        mode='w'  # Mode écriture (écrase le fichier existant)
                     ) as writer:
-                        df.to_excel(writer, sheet_name=selected_sheet, index=False)
+                        for sheet_name, df in all_sheets.items():
+                            df.to_excel(writer, sheet_name=sheet_name, index=False)
                     
-                    st.success("New entry added successfully!")
+                    st.success("New entry added successfully to the Excel file!")
                     st.rerun()
     
+    except PermissionError:
+        st.error("Error: Could not write to the Excel file. Please make sure the file is not open in another program.")
     except Exception as e:
-        st.error(f"Error accessing KDDB file: {str(e)}")
-        st.error("Please make sure the KDDB.xlsx file is not open in another program.")
+        st.error(f"An error occurred: {str(e)}")
         
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
