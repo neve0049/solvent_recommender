@@ -275,6 +275,82 @@ def show_kddb_page():
             st.session_state.search_triggered = False
             st.rerun()
 
+def show_add_data_page():
+    st.title("➕ Add Data to KD Database")
+    
+    with st.expander("ℹ️ Instructions", expanded=True):
+        st.write("""
+        Use this form to add new data to the KD Database (KDDB.xlsx).  
+        Please fill in all required fields.  
+        The data will be appended to the existing Excel file.
+        """)
+    
+    # Formulaire pour ajouter des données
+    with st.form(key='add_data_form'):
+        st.subheader("Compound Information")
+        compound_name = st.text_input("Compound Name*", help="Name of the compound to add")
+        cas_number = st.text_input("CAS Number", help="CAS registry number (optional)")
+        log_p_pubchem = st.number_input("Log P (PubChem)", value=None, help="Log P value from PubChem (optional)")
+        log_p_cosmo = st.number_input("Log P (COSMO-RS)", value=None, help="Log P value from COSMO-RS (optional)")
+        
+        st.subheader("System Information")
+        system_name = st.text_input("System Name*", help="Name of the biphasic solvent system (e.g. 'Heptane-EtOAc-MeOH-Water')")
+        composition = st.text_input("Composition*", help="Composition description (e.g. '1-1-1-1')")
+        log_kd = st.number_input("Log KD Value*", help="Logarithm of the distribution coefficient")
+        
+        # Bouton de soumission
+        submitted = st.form_submit_button("Add Data to KDDB")
+        
+        if submitted:
+            # Validation des champs obligatoires
+            if not compound_name or not system_name or not composition or log_kd is None:
+                st.error("Please fill in all required fields (*)")
+            else:
+                try:
+                    # Création d'un DataFrame avec les nouvelles données
+                    new_data = pd.DataFrame({
+                        'Compound': [compound_name],
+                        'CAS': [cas_number if cas_number else ''],
+                        'Log P (Pubchem)': [log_p_pubchem if log_p_pubchem else ''],
+                        'Log P (COSMO-RS)': [log_p_cosmo if log_p_cosmo else ''],
+                        'System': [system_name],
+                        'Composition': [composition],
+                        'Log KD': [log_kd]
+                    })
+                    
+                    # Charger le fichier Excel existant ou en créer un nouveau s'il n'existe pas
+                    try:
+                        excel_file = pd.ExcelFile(EXCEL_PATH)
+                        sheets_dict = pd.read_excel(excel_file, sheet_name=None)
+                    except FileNotFoundError:
+                        sheets_dict = {}
+                    
+                    # Vérifier si la feuille pour ce composé existe déjà
+                    if compound_name in sheets_dict:
+                        # Ajouter les nouvelles données à la feuille existante
+                        existing_df = sheets_dict[compound_name]
+                        updated_df = pd.concat([existing_df, new_data], ignore_index=True)
+                        sheets_dict[compound_name] = updated_df
+                    else:
+                        # Créer une nouvelle feuille pour ce composé
+                        sheets_dict[compound_name] = new_data
+                    
+                    # Écrire toutes les feuilles dans le fichier Excel
+                    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+                        for sheet_name, df in sheets_dict.items():
+                            df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    
+                    st.success("Data successfully added to KDDB.xlsx!")
+                    st.balloons()
+                    
+                    # Afficher un aperçu des données ajoutées
+                    st.subheader("Added Data Preview")
+                    st.dataframe(new_data)
+                    
+                except Exception as e:
+                    st.error(f"An error occurred while saving the data: {str(e)}")
+                    st.error("Please make sure the KDDB.xlsx file is not open in another program.")
+
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
@@ -1699,6 +1775,8 @@ def main():
             st.session_state.current_page = "ternary_plot"
         if st.button("🧊 Quaternary Plot Diagram"):
             st.session_state.current_page = "quaternary_plot"
+        if st.button("➕ Add Data to KDDB"):
+            st.session_state.current_page = "add_data"
     
     # Router vers la page active
     try:
@@ -1716,6 +1794,9 @@ def main():
             show_ternary_plot_page()
         elif st.session_state.current_page == "quaternary_plot":
             show_quaternary_plot_page()
+        elif st.session_state.current_page == "add_data":
+            show_add_data_page()
+    
     except Exception as e:
         st.error(f"Une erreur est survenue: {str(e)}")
         st.session_state.current_page = "home"
