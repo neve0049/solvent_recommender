@@ -276,20 +276,29 @@ def show_kddb_page():
             st.rerun()
 
 # Function to append data to KDDB.xlsx
-def append_to_kddb(data):
-    """Append new data to the KDDB.xlsx file."""
+def append_or_create_kddb(compound_name, data):
+    """Append new data to the existing sheet or create a new sheet in KDDB.xlsx."""
     try:
         # Load existing data
         if os.path.exists(EXCEL_PATH):
-            existing_data = pd.read_excel(EXCEL_PATH)
+            with pd.ExcelFile(EXCEL_PATH) as xls:
+                # Check if the sheet for the compound already exists
+                if compound_name in xls.sheet_names:
+                    # Load existing sheet data
+                    existing_data = pd.read_excel(xls, sheet_name=compound_name)
+                    # Append new data
+                    updated_data = existing_data.append(data, ignore_index=True)
+                else:
+                    # Create a new DataFrame for the new compound
+                    updated_data = pd.DataFrame(data)
         else:
-            existing_data = pd.DataFrame()
-
-        # Append new data
-        updated_data = existing_data.append(data, ignore_index=True)
+            # If the file does not exist, create a new DataFrame
+            updated_data = pd.DataFrame(data)
 
         # Save back to Excel
-        updated_data.to_excel(EXCEL_PATH, index=False)
+        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a' if os.path.exists(EXCEL_PATH) else 'w') as writer:
+            updated_data.to_excel(writer, sheet_name=compound_name, index=False)
+
         return True
     except Exception as e:
         st.error(f"Error while saving data: {str(e)}")
@@ -301,6 +310,7 @@ def show_data_entry_page():
 
     # Create a form for user input
     with st.form(key='data_entry_form'):
+        compound_name = st.text_input("Compound Name")
         log_kd = st.number_input("Log KD", format="%.2f")
         system = st.text_input("System")
         composition = st.text_input("Composition")
@@ -320,8 +330,8 @@ def show_data_entry_page():
             }
 
             # Append data to the KDDB.xlsx
-            if append_to_kddb(new_data):
-                st.success("Data successfully added to KD Database!")
+            if append_or_create_kddb(compound_name, new_data):
+                st.success(f"Data successfully added to the '{compound_name}' sheet in KD Database!")
 
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
