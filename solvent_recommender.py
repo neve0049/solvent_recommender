@@ -279,6 +279,11 @@ def show_kddb_page():
 def show_add_data_page():
     st.title("➕ Add Data to KD Database")
     
+    # Vérifier si on a été redirigé depuis le formulaire
+    if 'form_submitted' in st.session_state and st.session_state.form_submitted:
+        st.session_state.form_submitted = False
+        st.experimental_rerun()
+    
     with st.expander("ℹ️ Instructions", expanded=True):
         st.write("""
         Use this form to add new data to the KD Database (KDDB.xlsx).  
@@ -310,9 +315,9 @@ def show_add_data_page():
                 try:
                     # Chemin absolu du fichier
                     excel_path = os.path.abspath(EXCEL_PATH)
-                    st.write(f"Attempting to save to: {excel_path}")  # Debug
+                    st.info(f"Saving to: {excel_path}")
                     
-                    # Création de la nouvelle ligne de données
+                    # Création des données
                     new_data = {
                         'Compound': compound_name,
                         'SMILES': smiles if smiles else '',
@@ -323,61 +328,68 @@ def show_add_data_page():
                         'Composition': composition
                     }
                     
-                    # Solution robuste avec openpyxl direct
-                    from openpyxl import load_workbook
+                    # Solution robuste avec openpyxl
+                    from openpyxl import load_workbook, Workbook
                     
                     # Charger ou créer le workbook
                     if os.path.exists(excel_path):
                         wb = load_workbook(excel_path)
                     else:
-                        from openpyxl import Workbook
                         wb = Workbook()
-                        del wb[wb.sheetnames[0]]  # Supprimer la feuille par défaut
+                        # Supprimer la feuille par défaut si elle existe
+                        if 'Sheet' in wb.sheetnames:
+                            del wb['Sheet']
                     
                     # Trouver le prochain numéro de feuille
-                    sheet_numbers = []
+                    max_num = 0
                     for name in wb.sheetnames:
                         try:
                             num = int(name.split(':')[0].strip())
-                            sheet_numbers.append(num)
+                            if num > max_num:
+                                max_num = num
                         except:
                             continue
                     
-                    next_num = max(sheet_numbers) + 1 if sheet_numbers else 1
+                    next_num = max_num + 1
                     new_sheet_name = f"{next_num}:\n\"{compound_name}\""
                     
                     # Créer la nouvelle feuille
                     ws = wb.create_sheet(new_sheet_name)
                     
                     # Écrire les en-têtes
-                    headers = ['Compound', 'SMILES', 'Log P (Pubchem)', 'Log P (COSMO-RS)', 
-                              'Log KD', 'System', 'Composition']
+                    headers = ['Compound', 'SMILES', 'Log P (Pubchem)', 
+                              'Log P (COSMO-RS)', 'Log KD', 'System', 'Composition']
                     ws.append(headers)
                     
                     # Écrire les données
-                    ws.append([new_data[col] for col in headers])
+                    ws.append([new_data[h] for h in headers])
                     
                     # Sauvegarder
                     wb.save(excel_path)
                     wb.close()
                     
-                    st.success(f"Data successfully added as new sheet: {new_sheet_name}")
+                    # Message de succès
+                    st.success(f"✅ Data successfully added as new sheet: {new_sheet_name}")
                     st.balloons()
                     
                     # Afficher un aperçu
                     st.subheader("Added Data Preview")
                     st.table(pd.DataFrame([new_data]))
                     
-                    # Debug: Afficher les feuilles actuelles
-                    if os.path.exists(excel_path):
-                        wb = load_workbook(excel_path)
-                        st.write("Current sheets:", wb.sheetnames)
-                        wb.close()
+                    # Debug
+                    st.info("Current sheets in KDDB.xlsx:")
+                    wb = load_workbook(excel_path)
+                    st.write(wb.sheetnames)
+                    wb.close()
+                    
+                    # Empêcher la redirection
+                    st.session_state.form_submitted = True
+                    st.experimental_rerun()
                     
                 except PermissionError:
-                    st.error("Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
+                    st.error("❌ Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
                 except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
+                    st.error(f"❌ An error occurred: {str(e)}")
                     st.error(f"Full traceback: {traceback.format_exc()}")
                     
 def show_dbdt_page():
