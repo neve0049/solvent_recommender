@@ -10,7 +10,6 @@ import base64
 import PyPDF2
 import os
 import re
-import openyxl
 from openpyxl import load_workbook
 
 # Configuration des chemins des fichiers
