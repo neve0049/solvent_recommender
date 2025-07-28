@@ -310,46 +310,69 @@ def show_add_data_page():
                 try:
                     # Chemin absolu du fichier
                     excel_path = os.path.abspath(EXCEL_PATH)
+                    st.write(f"Attempting to save to: {excel_path}")  # Debug
                     
-                    # Charger le fichier existant
+                    # Création de la nouvelle ligne de données
+                    new_data = {
+                        'Compound': compound_name,
+                        'SMILES': smiles if smiles else '',
+                        'Log P (Pubchem)': log_p_pubchem if log_p_pubchem else '',
+                        'Log P (COSMO-RS)': log_p_cosmo if log_p_cosmo else '',
+                        'Log KD': log_kd,
+                        'System': system_name,
+                        'Composition': composition
+                    }
+                    
+                    # Solution robuste avec openpyxl direct
+                    from openpyxl import load_workbook
+                    
+                    # Charger ou créer le workbook
                     if os.path.exists(excel_path):
-                        # Trouver la prochaine feuille disponible
-                        with pd.ExcelFile(excel_path) as excel:
-                            sheet_names = excel.sheet_names
-                            last_sheet = sheet_names[-1]
-                            
-                            # Extraire le dernier numéro
-                            try:
-                                last_num = int(last_sheet.split(':')[0].strip())
-                                new_sheet_name = f"{last_num + 1}:\n\"{compound_name}\""
-                            except:
-                                new_sheet_name = f"{len(sheet_names)}:\n\"{compound_name}\""
+                        wb = load_workbook(excel_path)
+                    else:
+                        from openpyxl import Workbook
+                        wb = Workbook()
+                        del wb[wb.sheetnames[0]]  # Supprimer la feuille par défaut
                     
-                    # Créer la nouvelle entrée
-                    new_data = pd.DataFrame({
-                        'Compound': [compound_name],
-                        'SMILES': [smiles if smiles else ''],
-                        'Log P (Pubchem)': [log_p_pubchem if log_p_pubchem else ''],
-                        'Log P (COSMO-RS)': [log_p_cosmo if log_p_cosmo else ''],
-                        'Log KD': [log_kd],
-                        'System': [system_name],
-                        'Composition': [composition]
-                    })
+                    # Trouver le prochain numéro de feuille
+                    sheet_numbers = []
+                    for name in wb.sheetnames:
+                        try:
+                            num = int(name.split(':')[0].strip())
+                            sheet_numbers.append(num)
+                        except:
+                            continue
+                    
+                    next_num = max(sheet_numbers) + 1 if sheet_numbers else 1
+                    new_sheet_name = f"{next_num}:\n\"{compound_name}\""
+                    
+                    # Créer la nouvelle feuille
+                    ws = wb.create_sheet(new_sheet_name)
+                    
+                    # Écrire les en-têtes
+                    headers = ['Compound', 'SMILES', 'Log P (Pubchem)', 'Log P (COSMO-RS)', 
+                              'Log KD', 'System', 'Composition']
+                    ws.append(headers)
+                    
+                    # Écrire les données
+                    ws.append([new_data[col] for col in headers])
                     
                     # Sauvegarder
-                    if os.path.exists(excel_path):
-                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
-                            new_data.to_excel(writer, sheet_name=new_sheet_name, index=False)
-                    else:
-                        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
-                            new_data.to_excel(writer, sheet_name=new_sheet_name, index=False)
+                    wb.save(excel_path)
+                    wb.close()
                     
-                    st.success(f"Data successfully added as new entry {new_sheet_name}!")
+                    st.success(f"Data successfully added as new sheet: {new_sheet_name}")
                     st.balloons()
                     
                     # Afficher un aperçu
                     st.subheader("Added Data Preview")
-                    st.dataframe(new_data)
+                    st.table(pd.DataFrame([new_data]))
+                    
+                    # Debug: Afficher les feuilles actuelles
+                    if os.path.exists(excel_path):
+                        wb = load_workbook(excel_path)
+                        st.write("Current sheets:", wb.sheetnames)
+                        wb.close()
                     
                 except PermissionError:
                     st.error("Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
