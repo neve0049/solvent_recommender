@@ -10,6 +10,8 @@ import base64
 import PyPDF2
 import os
 import re
+import openyxl
+from openpyxl import load_workbook
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -317,39 +319,50 @@ def show_add_data_page():
                         'Composition': [composition],
                         'Log KD': [log_kd]
                     })
-                    
-                    # Charger le fichier Excel existant ou en créer un nouveau s'il n'existe pas
-                    try:
-                        excel_file = pd.ExcelFile(EXCEL_PATH)
-                        sheets_dict = pd.read_excel(excel_file, sheet_name=None)
-                    except FileNotFoundError:
-                        sheets_dict = {}
-                    
-                    # Vérifier si la feuille pour ce composé existe déjà
-                    if compound_name in sheets_dict:
-                        # Ajouter les nouvelles données à la feuille existante
-                        existing_df = sheets_dict[compound_name]
-                        updated_df = pd.concat([existing_df, new_data], ignore_index=True)
-                        sheets_dict[compound_name] = updated_df
+
+                    # Vérifier si le fichier existe déjà
+                    if os.path.exists(EXCEL_PATH):
+                        # Charger le fichier existant
+                        book = load_workbook(EXCEL_PATH)
+                        writer = pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') 
+                        writer.book = book
+                        
+                        # Vérifier si la feuille existe déjà
+                        if compound_name in book.sheetnames:
+                            # Lire les données existantes
+                            existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
+                            # Concaténer avec les nouvelles données
+                            updated_df = pd.concat([existing_df, new_data], ignore_index=True)
+                            # Écraser la feuille existante
+                            updated_df.to_excel(writer, sheet_name=compound_name, index=False)
+                        else:
+                            # Créer une nouvelle feuille
+                            new_data.to_excel(writer, sheet_name=compound_name, index=False)
+                        
+                        # Sauvegarder les autres feuilles
+                        for sheetname in book.sheetnames:
+                            if sheetname != compound_name:
+                                df_existing = pd.read_excel(EXCEL_PATH, sheet_name=sheetname)
+                                df_existing.to_excel(writer, sheet_name=sheetname, index=False)
+                        
+                        writer.save()
+                        writer.close()
                     else:
-                        # Créer une nouvelle feuille pour ce composé
-                        sheets_dict[compound_name] = new_data
+                        # Créer un nouveau fichier
+                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+                            new_data.to_excel(writer, sheet_name=compound_name, index=False)
                     
-                    # Écrire toutes les feuilles dans le fichier Excel
-                    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-                        for sheet_name, df in sheets_dict.items():
-                            df.to_excel(writer, sheet_name=sheet_name, index=False)
-                    
-                    st.success("Data successfully added to KDDB.xlsx!")
+                    st.success(f"Data successfully added to {EXCEL_PATH} in sheet '{compound_name}'!")
                     st.balloons()
                     
                     # Afficher un aperçu des données ajoutées
                     st.subheader("Added Data Preview")
                     st.dataframe(new_data)
                     
+                except PermissionError:
+                    st.error("Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
                 except Exception as e:
-                    st.error(f"An error occurred while saving the data: {str(e)}")
-                    st.error("Please make sure the KDDB.xlsx file is not open in another program.")
+                    st.error(f"An error occurred: {str(e)}")
 
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
