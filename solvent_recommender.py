@@ -275,6 +275,131 @@ def show_kddb_page():
             st.session_state.search_triggered = False
             st.rerun()
 
+def show_kddb_editor():
+    st.title("KD Database Editor")
+    st.warning("⚠️ Attention: Les modifications apportées ici seront directement enregistrées dans le fichier KDDB.xlsx")
+    
+    try:
+        # Charger le fichier KDDB
+        excel_file = pd.ExcelFile(EXCEL_PATH)
+        sheet_names = excel_file.sheet_names
+        
+        # Sélection de la feuille à modifier
+        selected_sheet = st.selectbox(
+            "Select or create a compound sheet",
+            sheet_names + ["+ Create new compound sheet"],
+            key="kddb_sheet_select"
+        )
+        
+        # Gestion de la création d'une nouvelle feuille
+        if selected_sheet == "+ Create new compound sheet":
+            new_sheet_name = st.text_input("Enter new compound name")
+            
+            if new_sheet_name:
+                if new_sheet_name in sheet_names:
+                    st.error("This compound sheet already exists!")
+                else:
+                    # Créer un nouveau dataframe vide avec les colonnes standard
+                    new_df = pd.DataFrame(columns=[
+                        'Log KD', 'System', 'Composition', 
+                        'Log P (Pubchem)', 'Log P (COSMO-RS)'
+                    ])
+                    
+                    # Sauvegarder la nouvelle feuille
+                    with pd.ExcelWriter(
+                        EXCEL_PATH,
+                        engine='openpyxl',
+                        mode='a',  # Append mode
+                        if_sheet_exists='overlay'
+                    ) as writer:
+                        new_df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+                    
+                    st.success(f"New sheet '{new_sheet_name}' created successfully!")
+                    st.rerun()
+        
+        else:
+            # Charger les données de la feuille sélectionnée
+            df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
+            
+            # Afficher les données existantes
+            st.subheader(f"Current data for {selected_sheet}")
+            
+            # Configuration des colonnes pour l'édition
+            column_config = {
+                "Log KD": st.column_config.NumberColumn(
+                    "Log KD",
+                    help="Distribution coefficient (log scale)",
+                    format="%.2f"
+                ),
+                "System": st.column_config.TextColumn(
+                    "System",
+                    help="Solvent system name (must match DBDT/DBDQ sheets)"
+                ),
+                "Composition": st.column_config.TextColumn(
+                    "Composition",
+                    help="System composition (must match DBDT/DBDQ sheets)"
+                ),
+                "Log P (Pubchem)": st.column_config.NumberColumn(
+                    "Log P (Pubchem)",
+                    help="Partition coefficient from PubChem",
+                    format="%.2f"
+                ),
+                "Log P (COSMO-RS)": st.column_config.NumberColumn(
+                    "Log P (COSMO-RS)",
+                    help="Partition coefficient from COSMO-RS",
+                    format="%.2f"
+                )
+            }
+            
+            # Éditeur de données
+            edited_df = st.data_editor(
+                df,
+                column_config=column_config,
+                num_rows="dynamic",  # Permet d'ajouter/supprimer des lignes
+                use_container_width=True,
+                key=f"editor_{selected_sheet}"
+            )
+            
+            # Boutons d'action
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("💾 Save changes", key="save_changes"):
+                    with pd.ExcelWriter(
+                        EXCEL_PATH,
+                        engine='openpyxl',
+                        mode='a',  # Append mode
+                        if_sheet_exists='replace'  # Remplace la feuille existante
+                    ) as writer:
+                        edited_df.to_excel(writer, sheet_name=selected_sheet, index=False)
+                    st.success("Changes saved successfully!")
+            
+            with col2:
+                if st.button("🗑️ Delete this sheet", type="primary"):
+                    # Confirmation avant suppression
+                    if st.checkbox(f"Confirm deletion of {selected_sheet} sheet"):
+                        # Lire toutes les feuilles
+                        all_sheets = pd.read_excel(EXCEL_PATH, sheet_name=None)
+                        
+                        # Supprimer la feuille sélectionnée
+                        del all_sheets[selected_sheet]
+                        
+                        # Réécrire le fichier sans la feuille supprimée
+                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+                            for sheet_name, sheet_data in all_sheets.items():
+                                sheet_data.to_excel(writer, sheet_name=sheet_name, index=False)
+                        
+                        st.success(f"Sheet '{selected_sheet}' deleted successfully!")
+                        st.rerun()
+            
+            with col3:
+                if st.button("🔄 Revert changes"):
+                    st.rerun()
+    
+    except Exception as e:
+        st.error(f"Error accessing KDDB file: {str(e)}")
+        st.error("Please make sure the KDDB.xlsx file is not open in another program.")
+        
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
@@ -1689,6 +1814,8 @@ def main():
             st.session_state.current_page = "home"
         if st.button("🔍 KD Database Explorer"):
             st.session_state.current_page = "kddb"
+        if st.button("✏️ KD Database Editor"):
+            st.session_state.current_page = "kddb_editor"
         if st.button("📊 Ternary Phase Diagrams"):
             st.session_state.current_page = "dbdt"
         if st.button("🧊 Quaternary Phase Diagrams"):
@@ -1706,6 +1833,8 @@ def main():
             show_home_page()
         elif st.session_state.current_page == "kddb":
             show_kddb_page()
+        elif st.session_state.current_page == "kddb_editor":
+            show_kddb_editor()
         elif st.session_state.current_page == "dbdt":
             show_dbdt_page()
         elif st.session_state.current_page == "dbdq":
