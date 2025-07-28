@@ -285,7 +285,8 @@ def show_add_kddb_page():
         """)
     
     # Formulaire pour ajouter des données
-    with st.form("add_kddb_form"):
+    form = st.form(key="add_kddb_form")
+    with form:
         st.subheader("Compound Information")
         compound_name = st.text_input("Compound Name*", help="Name of the compound to add")
         cas_number = st.text_input("CAS Number", help="Optional CAS registry number")
@@ -297,55 +298,58 @@ def show_add_kddb_page():
         composition = st.text_input("Composition*", help="Composition description (e.g. '5-3-2')")
         log_kd = st.number_input("Log KD Value*", format="%.2f", help="Measured or calculated Log KD value")
         
-        # Validation et soumission
-        submitted = st.form_submit_button("Submit Data")
-        
-        if submitted:
-            # Validation des champs obligatoires
-            if not compound_name or not system_name or not composition or not log_kd:
-                st.error("Please fill in all required fields (marked with *)")
-            else:
-                try:
-                    # Charger le fichier Excel existant
-                    excel_file = pd.ExcelFile(EXCEL_PATH)
-                    sheet_names = excel_file.sheet_names
-                    
-                    # Préparer les nouvelles données
-                    new_data = {
-                        'System': [system_name],
-                        'Composition': [composition],
-                        'Log KD': [log_kd],
-                        'Log P (Pubchem)': [log_p_pubchem if log_p_pubchem else None],
-                        'Log P (COSMO-RS)': [log_p_cosmo if log_p_cosmo else None]
-                    }
-                    new_df = pd.DataFrame(new_data)
-                    
-                    # Vérifier si la feuille existe déjà
-                    if compound_name in sheet_names:
-                        # Ajouter aux données existantes
-                        existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
-                        updated_df = pd.concat([existing_df, new_df], ignore_index=True)
-                        
-                        # Enregistrer dans un writer Excel
-                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-                            updated_df.to_excel(writer, sheet_name=compound_name, index=False)
-                    else:
-                        # Créer une nouvelle feuille
-                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a') as writer:
-                            new_df.to_excel(writer, sheet_name=compound_name, index=False)
-                    
-                    st.success(f"Data successfully added to {compound_name} sheet!")
-                    
-                    # Option pour voir les données ajoutées
-                    if st.button("View in KD Database"):
-                        st.session_state.current_page = "kddb"
-                        st.session_state.search_query = compound_name
-                        st.session_state.search_triggered = True
-                        st.rerun()
+        # Bouton de soumission dans le formulaire
+        submitted = form.form_submit_button("Submit Data")
+    
+    # Traitement après soumission
+    if submitted:
+        # Validation des champs obligatoires
+        if not compound_name or not system_name or not composition or not log_kd:
+            st.error("Please fill in all required fields (marked with *)")
+        else:
+            try:
+                # Charger le fichier Excel existant
+                excel_file = pd.ExcelFile(EXCEL_PATH)
+                sheet_names = excel_file.sheet_names
                 
-                except Exception as e:
-                    st.error(f"Error saving data: {str(e)}")
-                    st.error("Please make sure the KDDB.xlsx file is not open in another program.")
+                # Préparer les nouvelles données
+                new_data = {
+                    'System': [system_name],
+                    'Composition': [composition],
+                    'Log KD': [log_kd],
+                    'Log P (Pubchem)': [log_p_pubchem if log_p_pubchem else None],
+                    'Log P (COSMO-RS)': [log_p_cosmo if log_p_cosmo else None]
+                }
+                new_df = pd.DataFrame(new_data)
+                
+                # Vérifier si la feuille existe déjà
+                if compound_name in sheet_names:
+                    # Ajouter aux données existantes
+                    existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
+                    updated_df = pd.concat([existing_df, new_df], ignore_index=True)
+                    
+                    # Enregistrer dans un writer Excel
+                    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                        updated_df.to_excel(writer, sheet_name=compound_name, index=False)
+                else:
+                    # Créer une nouvelle feuille
+                    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a') as writer:
+                        new_df.to_excel(writer, sheet_name=compound_name, index=False)
+                
+                st.success(f"Data successfully added to {compound_name} sheet!")
+                st.balloons()
+                
+                # Option pour voir les données ajoutées
+                if st.button("View in KD Database"):
+                    st.session_state.current_page = "kddb"
+                    st.session_state.search_query = compound_name
+                    st.session_state.search_triggered = True
+                    st.rerun()
+            
+            except PermissionError:
+                st.error("Could not save data. Please make sure the KDDB.xlsx file is not open in another program.")
+            except Exception as e:
+                st.error(f"Error saving data: {str(e)}")
 
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
