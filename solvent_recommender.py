@@ -285,55 +285,54 @@ def show_add_kddb_page():
         """)
     
     # Formulaire pour ajouter des données
-    form = st.form(key="add_kddb_form")
-    with form:
+    with st.form(key="add_kddb_form"):
         st.subheader("Compound Information")
-        compound_name = st.text_input("Compound Name*", help="Name of the compound to add")
-        cas_number = st.text_input("CAS Number", help="Optional CAS registry number")
+        compound_name = st.text_input("Compound Name*", help="Name of the compound to add").strip()
+        cas_number = st.text_input("CAS Number", help="Optional CAS registry number").strip()
         log_p_pubchem = st.number_input("LogP (PubChem)", format="%.2f", help="Optional PubChem LogP value")
         log_p_cosmo = st.number_input("LogP (COSMO-RS)", format="%.2f", help="Optional COSMO-RS LogP value")
         
         st.subheader("System Information")
-        system_name = st.text_input("System Name*", help="Name of the solvent system (e.g. 'Heptane-Ethanol-Water')")
-        composition = st.text_input("Composition*", help="Composition description (e.g. '5-3-2')")
+        system_name = st.text_input("System Name*", help="Name of the solvent system (e.g. 'Heptane-Ethanol-Water')").strip()
+        composition = st.text_input("Composition*", help="Composition description (e.g. '5-3-2')").strip()
         log_kd = st.number_input("Log KD Value*", format="%.2f", help="Measured or calculated Log KD value")
         
-        # Bouton de soumission dans le formulaire
-        submitted = form.form_submit_button("Submit Data")
+        submitted = st.form_submit_button("Submit Data")
     
-    # Traitement après soumission
     if submitted:
         # Validation des champs obligatoires
-        if not compound_name or not system_name or not composition or not log_kd:
+        if not compound_name or not system_name or not composition:
             st.error("Please fill in all required fields (marked with *)")
         else:
             try:
-                # Charger le fichier Excel existant
+                # Charger toutes les feuilles existantes
                 excel_file = pd.ExcelFile(EXCEL_PATH)
                 sheet_names = excel_file.sheet_names
                 
-                # Préparer les nouvelles données
+                # Créer un DataFrame avec les nouvelles données
                 new_data = {
                     'System': [system_name],
                     'Composition': [composition],
                     'Log KD': [log_kd],
-                    'Log P (Pubchem)': [log_p_pubchem if log_p_pubchem else None],
-                    'Log P (COSMO-RS)': [log_p_cosmo if log_p_cosmo else None]
+                    'Log P (Pubchem)': [log_p_pubchem if pd.notna(log_p_pubchem) else None],
+                    'Log P (COSMO-RS)': [log_p_cosmo if pd.notna(log_p_cosmo) else None]
                 }
                 new_df = pd.DataFrame(new_data)
                 
-                # Vérifier si la feuille existe déjà
-                if compound_name in sheet_names:
-                    # Ajouter aux données existantes
-                    existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
-                    updated_df = pd.concat([existing_df, new_df], ignore_index=True)
+                # Créer un nouveau fichier Excel en mémoire
+                with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+                    # Réécrire toutes les feuilles existantes
+                    for sheet in sheet_names:
+                        if sheet != compound_name:
+                            pd.read_excel(EXCEL_PATH, sheet_name=sheet).to_excel(
+                                writer, sheet_name=sheet, index=False)
                     
-                    # Enregistrer dans un writer Excel
-                    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                    # Ajouter la nouvelle feuille ou mettre à jour l'existante
+                    if compound_name in sheet_names:
+                        existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
+                        updated_df = pd.concat([existing_df, new_df], ignore_index=True)
                         updated_df.to_excel(writer, sheet_name=compound_name, index=False)
-                else:
-                    # Créer une nouvelle feuille
-                    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a') as writer:
+                    else:
                         new_df.to_excel(writer, sheet_name=compound_name, index=False)
                 
                 st.success(f"Data successfully added to {compound_name} sheet!")
@@ -350,6 +349,7 @@ def show_add_kddb_page():
                 st.error("Could not save data. Please make sure the KDDB.xlsx file is not open in another program.")
             except Exception as e:
                 st.error(f"Error saving data: {str(e)}")
+                st.error("Please check the file format and try again.")
 
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
