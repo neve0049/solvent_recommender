@@ -290,65 +290,55 @@ def show_add_data_page():
     with st.form(key='add_data_form'):
         st.subheader("Compound Information")
         compound_name = st.text_input("Compound Name*", help="Name of the compound to add")
-        cas_number = st.text_input("CAS Number", help="CAS registry number (optional)")
-        log_p_pubchem = st.number_input("Log P (PubChem)", value=0.0, help="Log P value from PubChem (optional)")
-        log_p_cosmo = st.number_input("Log P (COSMO-RS)", value=0.0, help="Log P value from COSMO-RS (optional)")
+        smiles = st.text_input("SMILES", help="SMILES notation (optional)")
+        log_p_pubchem = st.text_input("Log P (Pubchem)", value="", help="Log P value from PubChem (optional)")
+        log_p_cosmo = st.text_input("Log P (COSMO-RS)", value="", help="Log P value from COSMO-RS (optional)")
         
         st.subheader("System Information")
-        system_name = st.text_input("System Name*", help="Name of the biphasic solvent system")
+        system_name = st.text_input("System*", help="Name of the biphasic solvent system (e.g. 'Arizona')")
         composition = st.text_input("Composition*", help="Composition description")
-        log_kd = st.number_input("Log KD Value*", value=0.0, help="Logarithm of the distribution coefficient")
+        log_kd = st.text_input("Log KD Value*", value="", help="Logarithm of the distribution coefficient")
         
         # Bouton de soumission
         submitted = st.form_submit_button("Add Data to KDDB")
         
         if submitted:
             # Validation des champs obligatoires
-            if not compound_name or not system_name or not composition:
+            if not compound_name or not system_name or not composition or not log_kd:
                 st.error("Please fill in all required fields (*)")
             else:
                 try:
-                    # Création d'un DataFrame avec des types de données explicites
+                    # Création d'un DataFrame avec la structure exacte
                     new_data = pd.DataFrame({
-                        'Compound': [str(compound_name)],
-                        'CAS': [str(cas_number) if cas_number else ''],
-                        'Log P (Pubchem)': [float(log_p_pubchem)],
-                        'Log P (COSMO-RS)': [float(log_p_cosmo)],
-                        'System': [str(system_name)],
-                        'Composition': [str(composition)],
-                        'Log KD': [float(log_kd)]
+                        'Compound': [compound_name],
+                        'SMILES': [smiles if smiles else ''],
+                        'Log P (Pubchem)': [log_p_pubchem if log_p_pubchem else ''],
+                        'Log P (COSMO-RS)': [log_p_cosmo if log_p_cosmo else ''],
+                        'Log KD': [log_kd],
+                        'System': [system_name],
+                        'Composition': [composition]
                     })
 
                     # Vérifier si le fichier existe déjà
                     if os.path.exists(EXCEL_PATH):
-                        # Charger toutes les feuilles existantes
-                        with pd.ExcelFile(EXCEL_PATH) as excel:
-                            sheets_dict = {sheet: pd.read_excel(excel, sheet_name=sheet) 
-                                         for sheet in excel.sheet_names}
+                        # Charger le fichier existant
+                        book = load_workbook(EXCEL_PATH)
                         
-                        # Mettre à jour ou ajouter la nouvelle feuille
-                        if compound_name in sheets_dict:
-                            existing_df = sheets_dict[compound_name]
-                            # S'assurer que les types de données sont cohérents
-                            for col in new_data.columns:
-                                if col in existing_df.columns:
-                                    new_data[col] = new_data[col].astype(existing_df[col].dtype)
+                        # Vérifier si la feuille existe déjà
+                        if compound_name in book.sheetnames:
+                            # Lire les données existantes
+                            existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
+                            # Concaténer avec les nouvelles données
                             updated_df = pd.concat([existing_df, new_data], ignore_index=True)
-                            sheets_dict[compound_name] = updated_df
                         else:
-                            sheets_dict[compound_name] = new_data
+                            updated_df = new_data
                         
-                        # Sauvegarder toutes les feuilles
-                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-                            for sheet_name, df in sheets_dict.items():
-                                # Convertir les types pour éviter les problèmes avec pyarrow
-                                df = df.apply(lambda x: x.astype(str) if x.dtype == 'object' else x)
-                                df.to_excel(writer, sheet_name=sheet_name, index=False)
+                        # Sauvegarder dans le fichier Excel
+                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                            updated_df.to_excel(writer, sheet_name=compound_name, index=False)
                     else:
                         # Créer un nouveau fichier
                         with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-                            # Convertir les types pour éviter les problèmes avec pyarrow
-                            new_data = new_data.apply(lambda x: x.astype(str) if x.dtype == 'object' else x)
                             new_data.to_excel(writer, sheet_name=compound_name, index=False)
                     
                     st.success(f"Data successfully added to {EXCEL_PATH} in sheet '{compound_name}'!")
@@ -356,9 +346,11 @@ def show_add_data_page():
                     
                     # Afficher un aperçu des données ajoutées
                     st.subheader("Added Data Preview")
-                    # Convertir pour l'affichage Streamlit
-                    display_df = new_data.copy()
-                    st.dataframe(display_df.apply(lambda x: x.astype(str) if x.dtype == 'object' else x))
+                    st.dataframe(new_data)
+                    
+                    # Forcer le rechargement de la base de données
+                    if 'kddb_data' in st.session_state:
+                        del st.session_state['kddb_data']
                     
                 except PermissionError:
                     st.error("Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
