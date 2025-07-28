@@ -10,6 +10,8 @@ import base64
 import PyPDF2
 import os
 import re
+import openpyxl
+from openpyxl import load_workbook
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -305,35 +307,36 @@ def show_add_kddb_page():
             st.error("Please fill in all required fields (marked with *)")
         else:
             try:
-                # Charger toutes les feuilles existantes
-                excel_file = pd.ExcelFile(EXCEL_PATH)
-                sheet_names = excel_file.sheet_names
+                # Vérifier si le fichier existe
+                if not os.path.exists(EXCEL_PATH):
+                    # Créer un nouveau fichier si nécessaire
+                    wb = Workbook()
+                    wb.save(EXCEL_PATH)
                 
-                # Créer un DataFrame avec les nouvelles données
-                new_data = {
-                    'System': [system_name],
-                    'Composition': [composition],
-                    'Log KD': [log_kd],
-                    'Log P (Pubchem)': [log_p_pubchem if pd.notna(log_p_pubchem) else None],
-                    'Log P (COSMO-RS)': [log_p_cosmo if pd.notna(log_p_cosmo) else None]
-                }
-                new_df = pd.DataFrame(new_data)
+                # Charger le fichier Excel
+                wb = load_workbook(EXCEL_PATH)
                 
-                # Créer un nouveau fichier Excel en mémoire
-                with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-                    # Réécrire toutes les feuilles existantes
-                    for sheet in sheet_names:
-                        if sheet != compound_name:
-                            pd.read_excel(EXCEL_PATH, sheet_name=sheet).to_excel(
-                                writer, sheet_name=sheet, index=False)
-                    
-                    # Ajouter la nouvelle feuille ou mettre à jour l'existante
-                    if compound_name in sheet_names:
-                        existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
-                        updated_df = pd.concat([existing_df, new_df], ignore_index=True)
-                        updated_df.to_excel(writer, sheet_name=compound_name, index=False)
-                    else:
-                        new_df.to_excel(writer, sheet_name=compound_name, index=False)
+                # Vérifier si la feuille existe déjà
+                if compound_name in wb.sheetnames:
+                    ws = wb[compound_name]
+                    max_row = ws.max_row + 1
+                else:
+                    # Créer une nouvelle feuille
+                    ws = wb.create_sheet(title=compound_name)
+                    # Ajouter les en-têtes
+                    ws.append(['System', 'Composition', 'Log KD', 'Log P (Pubchem)', 'Log P (COSMO-RS)'])
+                    max_row = 2
+                
+                # Ajouter les nouvelles données
+                ws.cell(row=max_row, column=1, value=system_name)
+                ws.cell(row=max_row, column=2, value=composition)
+                ws.cell(row=max_row, column=3, value=log_kd)
+                ws.cell(row=max_row, column=4, value=log_p_pubchem if pd.notna(log_p_pubchem) else "")
+                ws.cell(row=max_row, column=5, value=log_p_cosmo if pd.notna(log_p_cosmo) else "")
+                
+                # Sauvegarder les modifications
+                wb.save(EXCEL_PATH)
+                wb.close()
                 
                 st.success(f"Data successfully added to {compound_name} sheet!")
                 st.balloons()
