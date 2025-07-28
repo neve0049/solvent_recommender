@@ -275,6 +275,54 @@ def show_kddb_page():
             st.session_state.search_triggered = False
             st.rerun()
 
+# Function to append data to KDDB.xlsx
+def append_to_kddb(data):
+    """Append new data to the KDDB.xlsx file."""
+    try:
+        # Load existing data
+        if os.path.exists(EXCEL_PATH):
+            existing_data = pd.read_excel(EXCEL_PATH)
+        else:
+            existing_data = pd.DataFrame()
+
+        # Append new data
+        updated_data = existing_data.append(data, ignore_index=True)
+
+        # Save back to Excel
+        updated_data.to_excel(EXCEL_PATH, index=False)
+        return True
+    except Exception as e:
+        st.error(f"Error while saving data: {str(e)}")
+        return False
+
+# Function to show the data entry page
+def show_data_entry_page():
+    st.title("Add Data to KD Database")
+
+    # Create a form for user input
+    with st.form(key='data_entry_form'):
+        log_kd = st.number_input("Log KD", format="%.2f")
+        system = st.text_input("System")
+        composition = st.text_input("Composition")
+        log_p_pubchem = st.number_input("Log P (Pubchem)", format="%.2f", value=0.0)
+        log_p_cosmo_rs = st.number_input("Log P (COSMO-RS)", format="%.2f", value=0.0)
+
+        submit_button = st.form_submit_button("Submit")
+
+        if submit_button:
+            # Prepare data for appending
+            new_data = {
+                'Log KD': log_kd,
+                'System': system,
+                'Composition': composition,
+                'Log P (Pubchem)': log_p_pubchem,
+                'Log P (COSMO-RS)': log_p_cosmo_rs
+            }
+
+            # Append data to the KDDB.xlsx
+            if append_to_kddb(new_data):
+                st.success("Data successfully added to KD Database!")
+
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
@@ -1677,6 +1725,7 @@ def show_quaternary_plot_page():
 # Application principale
 # =============================================
 
+# Update the main function to include the new page
 def main():
     # Initialisation de l'état
     if 'current_page' not in st.session_state:
@@ -1689,6 +1738,8 @@ def main():
             st.session_state.current_page = "home"
         if st.button("🔍 KD Database Explorer"):
             st.session_state.current_page = "kddb"
+        if st.button("➕ Add Data to KD Database"):
+            st.session_state.current_page = "data_entry"  # New page for data entry
         if st.button("📊 Ternary Phase Diagrams"):
             st.session_state.current_page = "dbdt"
         if st.button("🧊 Quaternary Phase Diagrams"):
@@ -1706,6 +1757,8 @@ def main():
             show_home_page()
         elif st.session_state.current_page == "kddb":
             show_kddb_page()
+        elif st.session_state.current_page == "data_entry":  # New page for data entry
+            show_data_entry_page()
         elif st.session_state.current_page == "dbdt":
             show_dbdt_page()
         elif st.session_state.current_page == "dbdq":
