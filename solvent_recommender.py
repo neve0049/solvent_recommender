@@ -290,10 +290,10 @@ def append_or_create_kddb(compound_name, data):
                     updated_data = existing_data.append(data, ignore_index=True)
                 else:
                     # Create a new DataFrame for the new compound
-                    updated_data = pd.DataFrame(data)
+                    updated_data = pd.DataFrame(data, index=[0])  # Ensure it's a DataFrame with one row
         else:
             # If the file does not exist, create a new DataFrame
-            updated_data = pd.DataFrame(data)
+            updated_data = pd.DataFrame(data, index=[0])  # Ensure it's a DataFrame with one row
 
         # Save back to Excel
         with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a' if os.path.exists(EXCEL_PATH) else 'w') as writer:
