@@ -1762,7 +1762,7 @@ def main():
         if st.button("🔍 KD Database Explorer"):
             st.session_state.current_page = "kddb"
         if st.button("➕ Add to KD Database"):
-        st.session_state.current_page = "add_kddb"
+            st.session_state.current_page = "add_kddb"
         if st.button("📊 Ternary Phase Diagrams"):
             st.session_state.current_page = "dbdt"
         if st.button("🧊 Quaternary Phase Diagrams"):
