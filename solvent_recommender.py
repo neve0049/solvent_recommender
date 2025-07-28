@@ -275,64 +275,6 @@ def show_kddb_page():
             st.session_state.search_triggered = False
             st.rerun()
 
-# Function to append data to KDDB.xlsx
-def append_or_create_kddb(compound_name, data):
-    """Append new data to the existing sheet or create a new sheet in KDDB.xlsx."""
-    try:
-        # Load existing data
-        if os.path.exists(EXCEL_PATH):
-            with pd.ExcelFile(EXCEL_PATH) as xls:
-                # Check if the sheet for the compound already exists
-                if compound_name in xls.sheet_names:
-                    # Load existing sheet data
-                    existing_data = pd.read_excel(xls, sheet_name=compound_name)
-                    # Append new data
-                    updated_data = existing_data.append(data, ignore_index=True)
-                else:
-                    # Create a new DataFrame for the new compound
-                    updated_data = pd.DataFrame(data, index=[0])  # Ensure it's a DataFrame with one row
-        else:
-            # If the file does not exist, create a new DataFrame
-            updated_data = pd.DataFrame(data, index=[0])  # Ensure it's a DataFrame with one row
-
-        # Save back to Excel
-        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a' if os.path.exists(EXCEL_PATH) else 'w') as writer:
-            updated_data.to_excel(writer, sheet_name=compound_name, index=False)
-
-        return True
-    except Exception as e:
-        st.error(f"Error while saving data: {str(e)}")
-        return False
-
-# Function to show the data entry page
-def show_data_entry_page():
-    st.title("Add Data to KD Database")
-
-    # Create a form for user input
-    with st.form(key='data_entry_form'):
-        compound_name = st.text_input("Compound Name")
-        log_kd = st.number_input("Log KD", format="%.2f")
-        system = st.text_input("System")
-        composition = st.text_input("Composition")
-        log_p_pubchem = st.number_input("Log P (Pubchem)", format="%.2f", value=0.0)
-        log_p_cosmo_rs = st.number_input("Log P (COSMO-RS)", format="%.2f", value=0.0)
-
-        submit_button = st.form_submit_button("Submit")
-
-        if submit_button:
-            # Prepare data for appending
-            new_data = {
-                'Log KD': log_kd,
-                'System': system,
-                'Composition': composition,
-                'Log P (Pubchem)': log_p_pubchem,
-                'Log P (COSMO-RS)': log_p_cosmo_rs
-            }
-
-            # Append data to the KDDB.xlsx
-            if append_or_create_kddb(compound_name, new_data):
-                st.success(f"Data successfully added to the '{compound_name}' sheet in KD Database!")
-
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
@@ -1735,7 +1677,6 @@ def show_quaternary_plot_page():
 # Application principale
 # =============================================
 
-# Update the main function to include the new page
 def main():
     # Initialisation de l'état
     if 'current_page' not in st.session_state:
@@ -1748,8 +1689,6 @@ def main():
             st.session_state.current_page = "home"
         if st.button("🔍 KD Database Explorer"):
             st.session_state.current_page = "kddb"
-        if st.button("➕ Add Data to KD Database"):
-            st.session_state.current_page = "data_entry"  # New page for data entry
         if st.button("📊 Ternary Phase Diagrams"):
             st.session_state.current_page = "dbdt"
         if st.button("🧊 Quaternary Phase Diagrams"):
@@ -1767,8 +1706,6 @@ def main():
             show_home_page()
         elif st.session_state.current_page == "kddb":
             show_kddb_page()
-        elif st.session_state.current_page == "data_entry":  # New page for data entry
-            show_data_entry_page()
         elif st.session_state.current_page == "dbdt":
             show_dbdt_page()
         elif st.session_state.current_page == "dbdq":
