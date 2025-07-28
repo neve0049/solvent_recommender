@@ -321,31 +321,21 @@ def show_add_data_page():
 
                     # Vérifier si le fichier existe déjà
                     if os.path.exists(EXCEL_PATH):
-                        # Charger le fichier existant
-                        book = load_workbook(EXCEL_PATH)
-                        writer = pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') 
-                        writer.book = book
+                        # Charger toutes les feuilles existantes
+                        with pd.ExcelFile(EXCEL_PATH) as excel:
+                            sheets_dict = {sheet: pd.read_excel(excel, sheet_name=sheet) 
+                                         for sheet in excel.sheet_names}
                         
-                        # Vérifier si la feuille existe déjà
-                        if compound_name in book.sheetnames:
-                            # Lire les données existantes
-                            existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
-                            # Concaténer avec les nouvelles données
-                            updated_df = pd.concat([existing_df, new_data], ignore_index=True)
-                            # Écraser la feuille existante
-                            updated_df.to_excel(writer, sheet_name=compound_name, index=False)
-                        else:
-                            # Créer une nouvelle feuille
-                            new_data.to_excel(writer, sheet_name=compound_name, index=False)
+                        # Mettre à jour ou ajouter la nouvelle feuille
+                        sheets_dict[compound_name] = pd.concat(
+                            [sheets_dict.get(compound_name, pd.DataFrame()), new_data],
+                            ignore_index=True
+                        )
                         
-                        # Sauvegarder les autres feuilles
-                        for sheetname in book.sheetnames:
-                            if sheetname != compound_name:
-                                df_existing = pd.read_excel(EXCEL_PATH, sheet_name=sheetname)
-                                df_existing.to_excel(writer, sheet_name=sheetname, index=False)
-                        
-                        writer.save()
-                        writer.close()
+                        # Sauvegarder toutes les feuilles
+                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+                            for sheet_name, df in sheets_dict.items():
+                                df.to_excel(writer, sheet_name=sheet_name, index=False)
                     else:
                         # Créer un nouveau fichier
                         with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
@@ -362,7 +352,7 @@ def show_add_data_page():
                     st.error("Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
-
+                    
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
