@@ -309,53 +309,65 @@ def show_add_data_page():
             else:
                 try:
                     # Création d'un DataFrame avec la structure exacte
-                    new_data = pd.DataFrame({
-                        'Compound': [compound_name],
-                        'SMILES': [smiles if smiles else ''],
-                        'Log P (Pubchem)': [log_p_pubchem if log_p_pubchem else ''],
-                        'Log P (COSMO-RS)': [log_p_cosmo if log_p_cosmo else ''],
-                        'Log KD': [log_kd],
-                        'System': [system_name],
-                        'Composition': [composition]
-                    })
+                    new_row = {
+                        'Compound': compound_name,
+                        'SMILES': smiles if smiles else '',
+                        'Log P (Pubchem)': log_p_pubchem if log_p_pubchem else '',
+                        'Log P (COSMO-RS)': log_p_cosmo if log_p_cosmo else '',
+                        'Log KD': log_kd,
+                        'System': system_name,
+                        'Composition': composition
+                    }
+
+                    # Chemin absolu du fichier
+                    excel_path = os.path.abspath(EXCEL_PATH)
+                    st.write(f"Attempting to save to: {excel_path}")  # Debug
 
                     # Vérifier si le fichier existe déjà
-                    if os.path.exists(EXCEL_PATH):
-                        # Charger le fichier existant
-                        book = load_workbook(EXCEL_PATH)
+                    if os.path.exists(excel_path):
+                        # Charger toutes les feuilles existantes
+                        with pd.ExcelFile(excel_path) as excel:
+                            sheets_dict = {sheet: pd.read_excel(excel, sheet_name=sheet) 
+                                         for sheet in excel.sheet_names}
                         
                         # Vérifier si la feuille existe déjà
-                        if compound_name in book.sheetnames:
-                            # Lire les données existantes
-                            existing_df = pd.read_excel(EXCEL_PATH, sheet_name=compound_name)
-                            # Concaténer avec les nouvelles données
-                            updated_df = pd.concat([existing_df, new_data], ignore_index=True)
+                        if compound_name in sheets_dict:
+                            # Ajouter la nouvelle ligne
+                            sheets_dict[compound_name] = pd.concat([
+                                sheets_dict[compound_name],
+                                pd.DataFrame([new_row])
+                            ], ignore_index=True)
                         else:
-                            updated_df = new_data
+                            # Créer une nouvelle feuille
+                            sheets_dict[compound_name] = pd.DataFrame([new_row])
                         
-                        # Sauvegarder dans le fichier Excel
-                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-                            updated_df.to_excel(writer, sheet_name=compound_name, index=False)
+                        # Sauvegarder toutes les feuilles
+                        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+                            for sheet_name, df in sheets_dict.items():
+                                df.to_excel(writer, sheet_name=sheet_name, index=False)
                     else:
                         # Créer un nouveau fichier
-                        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-                            new_data.to_excel(writer, sheet_name=compound_name, index=False)
+                        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+                            pd.DataFrame([new_row]).to_excel(writer, sheet_name=compound_name, index=False)
                     
-                    st.success(f"Data successfully added to {EXCEL_PATH} in sheet '{compound_name}'!")
+                    st.success(f"Data successfully added to {excel_path} in sheet '{compound_name}'!")
                     st.balloons()
                     
                     # Afficher un aperçu des données ajoutées
                     st.subheader("Added Data Preview")
-                    st.dataframe(new_data)
+                    st.dataframe(pd.DataFrame([new_row]))
                     
-                    # Forcer le rechargement de la base de données
-                    if 'kddb_data' in st.session_state:
-                        del st.session_state['kddb_data']
+                    # Debug: Afficher le contenu du fichier
+                    if os.path.exists(excel_path):
+                        st.write("Current sheets in KDDB.xlsx:")
+                        with pd.ExcelFile(excel_path) as excel:
+                            st.write(excel.sheet_names)
                     
                 except PermissionError:
                     st.error("Error: Could not write to the file. Please make sure KDDB.xlsx is not open in another program.")
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
+                    st.error(f"Full traceback: {traceback.format_exc()}")
                     
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
