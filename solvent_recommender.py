@@ -1167,15 +1167,15 @@ def show_hansen_page():
             st.error(f"Error processing file: {str(e)}")
 
 def show_hspdb_page():
-    """Page HSP Database Explorer - Version corrigée"""
+    """Page HSP Database Explorer avec calcul de distance"""
     st.title("🧪 HSP Database Explorer")
     st.markdown("Explore and visualize Hansen Solubility Parameters (δD, δP, δH) from the database.")
     
     try:
-        # Charger les données (une seule feuille attendue)
+        # Charger les données
         df = pd.read_excel(HSPDB_PATH)
         
-        # Vérification des colonnes requises
+        # Vérification des colonnes
         required_cols = ['Compound', 'δD', 'δP', 'δH']
         if not all(col in df.columns for col in required_cols):
             st.error(f"Required columns missing: {', '.join(required_cols)}")
@@ -1184,27 +1184,13 @@ def show_hspdb_page():
         # Nettoyage des données
         df = df.dropna(subset=required_cols).copy()
         
-        # Section de sélection des composés
-        st.subheader("🔍 Compound Selection")
-        
-        # Filtre par source si la colonne existe
-        if 'Source' in df.columns:
-            sources = sorted(df['Source'].dropna().unique())
-            selected_sources = st.multiselect(
-                "Filter by data source (optional)",
-                options=sources,
-                default=sources,
-                key="source_filter"
-            )
-            if selected_sources:
-                df = df[df['Source'].isin(selected_sources)]
-        
         # Sélection des composés
+        st.subheader("🔍 Compound Selection")
         compounds = sorted(df['Compound'].unique())
         selected_compounds = st.multiselect(
-            "Select compounds to display",
+            "Select compounds to display (select 2 to calculate distance)",
             options=compounds,
-            default=compounds[:min(5, len(compounds))],  # Affiche max 5 par défaut
+            default=compounds[:min(2, len(compounds))],  # Par défaut 2 composés
             key="compound_selector"
         )
         
@@ -1214,146 +1200,91 @@ def show_hspdb_page():
             
         df_display = df[df['Compound'].isin(selected_compounds)].copy()
         
-        # Affichage des données sélectionnées
+        # Affichage des données
         st.subheader("📊 Selected HSP Data")
-        st.dataframe(
-            df_display,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Compound": st.column_config.TextColumn("Compound", width="medium"),
-                "δD": st.column_config.NumberColumn("δD", format="%.2f"),
-                "δP": st.column_config.NumberColumn("δP", format="%.2f"),
-                "δH": st.column_config.NumberColumn("δH", format="%.2f"),
-                "Source": st.column_config.TextColumn("Source", width="small") if 'Source' in df.columns else None,
-                "R0": st.column_config.NumberColumn("R0", format="%.2f") if 'R0' in df.columns else None
-            }
-        )
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
         
-        # Préparation des données pour le graphique
-        x = df_display['δD'].values
-        y = df_display['δP'].values
-        z = df_display['δH'].values
-        names = df_display['Compound'].values
+        # Calcul de distance si exactement 2 composés sont sélectionnés
+        distance = None
+        if len(selected_compounds) == 2:
+            comp1 = df_display.iloc[0]
+            comp2 = df_display.iloc[1]
+            distance = np.sqrt(
+                (comp1['δD']-comp2['δD'])**2 + 
+                (comp1['δP']-comp2['δP'])**2 + 
+                (comp1['δH']-comp2['δH'])**2
+            )
+            
+            st.subheader("📏 Distance Calculation")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric(f"{comp1['Compound']} (δD,δP,δH)", 
+                         f"{comp1['δD']:.1f}, {comp1['δP']:.1f}, {comp1['δH']:.1f}")
+            with col2:
+                st.metric("Distance", f"{distance:.2f} MPa¹ᐟ²")
+            with col3:
+                st.metric(f"{comp2['Compound']} (δD,δP,δH)", 
+                         f"{comp2['δD']:.1f}, {comp2['δP']:.1f}, {comp2['δH']:.1f}")
         
-        # Gestion des couleurs
-        if 'Source' in df_display.columns:
-            sources = df_display['Source'].values
-            color_map = {
-                'Experimental': '#1f77b4',  # Bleu
-                'Predicted': '#2ca02c',    # Vert
-                'Calculated': '#ff7f0e',   # Orange
-                'Literature': '#d62728'    # Rouge
-            }
-            colors = [color_map.get(s, '#7f7f7f') for s in sources]
-        else:
-            # Si pas de source, on utilise une couleur par composé
-            colors = px.colors.qualitative.Plotly
-            color_map = {name: colors[i % len(colors)] for i, name in enumerate(selected_compounds)}
-            colors = [color_map[name] for name in df_display['Compound']]
-        
-        # Création du graphique 3D
+        # Création du graphique
         fig = go.Figure()
         
         # Ajout des points
-        for i in range(len(x)):
-            hover_text = f"""
-            <b>{names[i]}</b><br>
-            δD: {x[i]:.2f} MPa<sup>1/2</sup><br>
-            δP: {y[i]:.2f} MPa<sup>1/2</sup><br>
-            δH: {z[i]:.2f} MPa<sup>1/2</sup><br>
-            """
-            
-            if 'Source' in df_display.columns:
-                hover_text += f"Source: {df_display['Source'].iloc[i]}<br>"
-            if 'R0' in df_display.columns:
-                hover_text += f"R0: {df_display['R0'].iloc[i]:.2f}"
-            
+        for _, row in df_display.iterrows():
             fig.add_trace(go.Scatter3d(
-                x=[x[i]], y=[y[i]], z=[z[i]],
+                x=[row['δD']], y=[row['δP']], z=[row['δH']],
                 mode='markers',
-                marker=dict(
-                    size=10,
-                    color=colors[i],
-                    opacity=0.9,
-                    line=dict(width=1, color='DarkSlateGrey')
-                ),
-                name=names[i],
+                marker=dict(size=10, color='#1f77b4'),
+                name=row['Compound'],
                 hoverinfo='text',
-                hovertext=hover_text,
-                showlegend=True
+                hovertext=f"""
+                <b>{row['Compound']}</b><br>
+                δD: {row['δD']:.2f}<br>
+                δP: {row['δP']:.2f}<br>
+                δH: {row['δH']:.2f}<br>
+                {f"Source: {row['Source']}" if 'Source' in row else ""}
+                """
             ))
         
-        # Configuration des axes
-        x_range = [max(0, df['δD'].min()-2), df['δD'].max()+2]
-        y_range = [max(0, df['δP'].min()-2), df['δP'].max()+2]
-        z_range = [max(0, df['δH'].min()-2), df['δH'].max()+2]
+        # Ajout de la ligne de connexion si 2 composés
+        if len(selected_compounds) == 2:
+            comp1 = df_display.iloc[0]
+            comp2 = df_display.iloc[1]
+            fig.add_trace(go.Scatter3d(
+                x=[comp1['δD'], comp2['δD']],
+                y=[comp1['δP'], comp2['δP']],
+                z=[comp1['δH'], comp2['δH']],
+                mode='lines',
+                line=dict(color='red', width=4, dash='dash'),
+                name=f"Distance: {distance:.2f}",
+                hoverinfo='none'
+            ))
         
-        # Mise en forme du graphique
         fig.update_layout(
             scene=dict(
-                xaxis_title='δD (Dispersion) [MPa<sup>1/2</sup>]',
-                yaxis_title='δP (Polar) [MPa<sup>1/2</sup>]',
-                zaxis_title='δH (Hydrogen Bonding) [MPa<sup>1/2</sup>]',
-                xaxis=dict(
-                    gridcolor='lightgray', 
-                    backgroundcolor='rgba(0,0,0,0.02)',
-                    range=x_range
-                ),
-                yaxis=dict(
-                    gridcolor='lightgray', 
-                    backgroundcolor='rgba(0,0,0,0.02)',
-                    range=y_range
-                ),
-                zaxis=dict(
-                    gridcolor='lightgray', 
-                    backgroundcolor='rgba(0,0,0,0.02)',
-                    range=z_range
-                ),
+                xaxis_title='δD (Dispersion) [MPa¹ᐟ²]',
+                yaxis_title='δP (Polar) [MPa¹ᐟ²]',
+                zaxis_title='δH (Hydrogen Bonding) [MPa¹ᐟ²]',
+                aspectmode='cube'
             ),
-            margin=dict(l=0, r=0, b=0, t=40),
             height=800,
-            title="Hansen Solubility Parameters Visualization",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
+            margin=dict(l=0, r=0, b=0, t=40)
         )
         
-        # Affichage du graphique
         st.plotly_chart(fig, use_container_width=True)
         
-        # Options d'export
-        with st.expander("📤 Export Options", expanded=False):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Export des données
-                csv = df_display.to_csv(index=False)
-                st.download_button(
-                    label="Download selected data as CSV",
-                    data=csv,
-                    file_name="hsp_selected_data.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            
-            with col2:
-                # Export du graphique
-                img_bytes = fig.to_image(format="png")
-                st.download_button(
-                    label="Download graph as PNG",
-                    data=img_bytes,
-                    file_name="hsp_visualization.png",
-                    mime="image/png",
-                    use_container_width=True
-                )
+        # Export HTML
+        with st.expander("📤 Export Options"):
+            html = fig.to_html()
+            st.download_button(
+                label="Download as HTML",
+                data=html,
+                file_name="hsp_visualization.html",
+                mime="text/html"
+            )
     
     except Exception as e:
-        st.error(f"Error loading HSP database: {str(e)}")
+        st.error(f"Error loading data: {str(e)}")
 
 # Module Ternary Plot Diagram
 def show_ternary_plot_page():
