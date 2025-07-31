@@ -1167,217 +1167,189 @@ def show_hansen_page():
             st.error(f"Error processing file: {str(e)}")
 
 def show_hspdb_page():
-    """Page HSP Database Explorer"""
+    """Page HSP Database Explorer - Version avec sélection de composés"""
     st.title("🧪 HSP Database Explorer")
-    st.markdown("Explore the database of Hansen Solubility Parameters (δD, δP, δH) for various compounds.")
+    st.markdown("Explore and visualize Hansen Solubility Parameters (δD, δP, δH) from the database.")
     
-    # Chargement des noms de feuilles
     try:
-        sheet_names = load_excel_sheets(HSPDB_PATH)
-        if not sheet_names:
-            st.warning("No sheets found in HSPDB.xlsx")
+        # Charger les données (une seule feuille attendue)
+        df = pd.read_excel(HSPDB_PATH)
+        
+        # Vérification des colonnes requises
+        required_cols = ['Compound', 'δD', 'δP', 'δH']
+        if not all(col in df.columns for col in required_cols):
+            st.error(f"Required columns missing: {', '.join(required_cols)}")
+            return
+        
+        # Nettoyage des données
+        df = df.dropna(subset=required_cols)
+        
+        # Section de sélection des composés
+        st.subheader("🔍 Compound Selection")
+        
+        # Filtre par source si la colonne existe
+        source_filter = None
+        if 'Source' in df.columns:
+            sources = df['Source'].unique()
+            source_filter = st.multiselect(
+                "Filter by data source (optional)",
+                options=sources,
+                default=sources,
+                key="source_filter"
+            )
+            df = df[df['Source'].isin(source_filter)] if source_filter else df
+        
+        # Sélection des composés
+        compounds = df['Compound'].unique()
+        selected_compounds = st.multiselect(
+            "Select compounds to display",
+            options=compounds,
+            default=compounds[:min(10, len(compounds))],  # Affiche max 10 par défaut
+            key="compound_selector"
+        )
+        
+        if not selected_compounds:
+            st.warning("Please select at least one compound")
             return
             
-        # Zone de recherche avancée
-        with st.expander("🔍 Advanced Search", expanded=True):
-            col1, col2 = st.columns([0.7, 0.3])
-            with col1:
-                search_query = st.text_input(
-                    "Search by compound name or CAS number",
-                    key="hsp_search_input",
-                    placeholder="e.g. 'Ethanol' or '64-17-5'"
-                )
-            with col2:
-                st.write("")  # Pour l'alignement
-                if st.button("Search", key="hsp_search_button"):
-                    st.session_state.hsp_search_triggered = True
-
-        # Gestion de la recherche
-        if 'hsp_search_triggered' not in st.session_state:
-            st.session_state.hsp_search_triggered = False
-
-        if st.session_state.hsp_search_triggered or search_query:
-            search_value = search_query.strip().lower()
-            matching_sheets = []
-            
-            # Recherche dans toutes les feuilles
-            for sheet in sheet_names:
-                df = pd.read_excel(HSPDB_PATH, sheet_name=sheet)
-                # Vérifier si la recherche correspond à un nom de composé ou CAS
-                if (any(df['Compound'].str.lower().str.contains(search_value))) or \
-                   ('CAS' in df.columns and any(df['CAS'].astype(str).str.lower().str.contains(search_value))):
-                    matching_sheets.append(sheet)
-            
-            if not matching_sheets:
-                st.warning("No matching compounds found")
-                if st.button("Show all compounds"):
-                    st.session_state.hsp_search_triggered = False
-                    st.rerun()
-            else:
-                # Affichage des résultats
-                selected_sheet = st.selectbox(
-                    "Select a compound",
-                    matching_sheets,
-                    key="hsp_sheet_selection"
-                )
-                
-                # Chargement des données de la feuille sélectionnée
-                try:
-                    df = pd.read_excel(HSPDB_PATH, sheet_name=selected_sheet)
-                    
-                    # Vérification des colonnes
-                    required_cols = ['Compound', 'δD', 'δP', 'δH']
-                    optional_cols = ['CAS', 'Source', 'R0']
-                    
-                    available_cols = [col for col in required_cols + optional_cols if col in df.columns]
-                    
-                    if not all(col in df.columns for col in required_cols):
-                        st.error(f"Required columns missing in the sheet: {', '.join(required_cols)}")
-                        return
-                    
-                    # Affichage des données
-                    st.subheader(f"HSP Data for {selected_sheet}")
-                    
-                    # Afficher sous forme de tableau avec mise en forme
-                    st.dataframe(
-                        df[available_cols],
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Compound": st.column_config.TextColumn("Compound", width="medium"),
-                            "δD": st.column_config.NumberColumn("δD", format="%.2f"),
-                            "δP": st.column_config.NumberColumn("δP", format="%.2f"),
-                            "δH": st.column_config.NumberColumn("δH", format="%.2f"),
-                            "CAS": st.column_config.TextColumn("CAS", width="small"),
-                            "Source": st.column_config.TextColumn("Source", width="small"),
-                            "R0": st.column_config.NumberColumn("R0", format="%.2f")
-                        }
-                    )
-                    
-                    # Préparation des données pour le graphique
-                    x = df['δD'].values
-                    y = df['δP'].values
-                    z = df['δH'].values
-                    names = df['Compound'].values
-                    
-                    # Gestion des couleurs (si la colonne Source existe)
-                    if 'Source' in df.columns:
-                        sources = df['Source'].values
-                        color_map = {
-                            'Experimental': '#1f77b4',  # Bleu
-                            'Predicted': '#2ca02c',    # Vert
-                            'Calculated': '#ff7f0e',   # Orange
-                            'Literature': '#d62728'    # Rouge
-                        }
-                    else:
-                        sources = ['Literature'] * len(df)
-                        color_map = {'Literature': '#1f77b4'}
-                    
-                    # Création du graphique 3D
-                    fig = go.Figure()
-                    
-                    # Ajout des points avec différentes couleurs selon la source
-                    for i in range(len(x)):
-                        source = sources[i] if sources[i] in color_map else 'Literature'
-                        fig.add_trace(go.Scatter3d(
-                            x=[x[i]], y=[y[i]], z=[z[i]],
-                            mode='markers',
-                            marker=dict(
-                                size=8,
-                                color=color_map.get(source, 'gray'),
-                                opacity=0.9,
-                                line=dict(width=1, color='DarkSlateGrey')
-                            ),
-                            name=f"{names[i]} ({source})",
-                            hoverinfo='text',
-                            hovertext=f"""
-                            <b>{names[i]}</b><br>
-                            δD: {x[i]:.2f} MPa<sup>1/2</sup><br>
-                            δP: {y[i]:.2f} MPa<sup>1/2</sup><br>
-                            δH: {z[i]:.2f} MPa<sup>1/2</sup><br>
-                            {f"Source: {sources[i]}" if 'Source' in df.columns else ""}
-                            {f"<br>CAS: {df['CAS'].values[i]}" if 'CAS' in df.columns else ""}
-                            """,
-                            showlegend=True
-                        ))
-                    
-                    # Mise en forme du graphique
-                    fig.update_layout(
-                        scene=dict(
-                            xaxis_title='δD (Dispersion) [MPa<sup>1/2</sup>]',
-                            yaxis_title='δP (Polar) [MPa<sup>1/2</sup>]',
-                            zaxis_title='δH (Hydrogen Bonding) [MPa<sup>1/2</sup>]',
-                            xaxis=dict(
-                                gridcolor='lightgray', 
-                                backgroundcolor='rgba(0,0,0,0)',
-                                range=[min(x)-2, max(x)+2]
-                            ),
-                            yaxis=dict(
-                                gridcolor='lightgray', 
-                                backgroundcolor='rgba(0,0,0,0)',
-                                range=[min(y)-2, max(y)+2]
-                            ),
-                            zaxis=dict(
-                                gridcolor='lightgray', 
-                                backgroundcolor='rgba(0,0,0,0)',
-                                range=[min(z)-2, max(z)+2]
-                            ),
-                        ),
-                        margin=dict(l=0, r=0, b=0, t=40),
-                        height=700,
-                        title=f"Hansen Solubility Parameters for {selected_sheet}",
-                        legend=dict(
-                            orientation="h",
-                            yanchor="bottom",
-                            y=1.02,
-                            xanchor="right",
-                            x=1
-                        )
-                    )
-                    
-                    # Affichage du graphique
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Options d'export
-                    with st.expander("📤 Export Options", expanded=False):
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            # Export des données
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label="Download as CSV",
-                                data=csv,
-                                file_name=f"hsp_{selected_sheet}.csv",
-                                mime="text/csv",
-                                use_container_width=True
-                            )
-                        
-                        with col2:
-                            # Export du graphique
-                            img_bytes = fig.to_image(format="png")
-                            st.download_button(
-                                label="Download as PNG",
-                                data=img_bytes,
-                                file_name=f"hsp_{selected_sheet}.png",
-                                mime="image/png",
-                                use_container_width=True
-                            )
-                
-                except Exception as e:
-                    st.error(f"Error loading data: {str(e)}")
-
-        # Si pas de recherche, afficher toutes les feuilles disponibles
+        df_display = df[df['Compound'].isin(selected_compounds)]
+        
+        # Affichage des données sélectionnées
+        st.subheader("📊 Selected HSP Data")
+        st.dataframe(
+            df_display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Compound": st.column_config.TextColumn("Compound", width="medium"),
+                "δD": st.column_config.NumberColumn("δD", format="%.2f"),
+                "δP": st.column_config.NumberColumn("δP", format="%.2f"),
+                "δH": st.column_config.NumberColumn("δH", format="%.2f"),
+                "Source": st.column_config.TextColumn("Source", width="small") if 'Source' in df.columns else None,
+                "R0": st.column_config.NumberColumn("R0", format="%.2f") if 'R0' in df.columns else None
+            }
+        )
+        
+        # Préparation des données pour le graphique
+        x = df_display['δD'].values
+        y = df_display['δP'].values
+        z = df_display['δH'].values
+        names = df_display['Compound'].values
+        
+        # Gestion des couleurs
+        if 'Source' in df.columns:
+            sources = df_display['Source'].values
+            color_map = {
+                'Experimental': '#1f77b4',  # Bleu
+                'Predicted': '#2ca02c',    # Vert
+                'Calculated': '#ff7f0e',   # Orange
+                'Literature': '#d62728'    # Rouge
+            }
         else:
-            st.subheader("Available Compounds")
-            st.write("Use the search bar above to find specific compounds or CAS numbers.")
+            # Si pas de source, on utilise une couleur par composé
+            colors = px.colors.qualitative.Plotly
+            color_map = {name: colors[i % len(colors)] for i, name in enumerate(selected_compounds)}
+            sources = None
+        
+        # Création du graphique 3D
+        fig = go.Figure()
+        
+        # Ajout des points
+        for i in range(len(x)):
+            if sources:
+                color = color_map.get(sources[i], 'gray')
+                name = f"{names[i]} ({sources[i]})"
+            else:
+                color = color_map.get(names[i], 'gray')
+                name = names[i]
             
-            # Afficher la liste des composés disponibles
-            compounds_list = "\n".join([f"- {sheet}" for sheet in sheet_names])
-            st.markdown(compounds_list)
+            fig.add_trace(go.Scatter3d(
+                x=[x[i]], y=[y[i]], z=[z[i]],
+                mode='markers',
+                marker=dict(
+                    size=10,
+                    color=color,
+                    opacity=0.9,
+                    line=dict(width=1, color='DarkSlateGrey')
+                ),
+                name=name,
+                hoverinfo='text',
+                hovertext=f"""
+                <b>{names[i]}</b><br>
+                δD: {x[i]:.2f} MPa<sup>1/2</sup><br>
+                δP: {y[i]:.2f} MPa<sup>1/2</sup><br>
+                δH: {z[i]:.2f} MPa<sup>1/2</sup><br>
+                {f"Source: {sources[i]}" if sources else ""}
+                {f"<br>R0: {df_display['R0'].values[i]:.2f}" if 'R0' in df.columns else ""}
+                """,
+                showlegend=True
+            ))
+        
+        # Mise en forme du graphique
+        fig.update_layout(
+            scene=dict(
+                xaxis_title='δD (Dispersion) [MPa<sup>1/2</sup>]',
+                yaxis_title='δP (Polar) [MPa<sup>1/2</sup>]',
+                zaxis_title='δH (Hydrogen Bonding) [MPa<sup>1/2</sup>]',
+                xaxis=dict(
+                    gridcolor='lightgray', 
+                    backgroundcolor='rgba(0,0,0,0.02)',
+                    range=[df['δD'].min()-2, df['δD'].max()+2]
+                ),
+                yaxis=dict(
+                    gridcolor='lightgray', 
+                    backgroundcolor='rgba(0,0,0,0.02)',
+                    range=[df['δP'].min()-2, df['δP'].max()+2]
+                ),
+                zaxis=dict(
+                    gridcolor='lightgray', 
+                    backgroundcolor='rgba(0,0,0,0.02)',
+                    range=[df['δH'].min()-2, df['δH'].max()+2]
+                ),
+            ),
+            margin=dict(l=0, r=0, b=0, t=40),
+            height=800,
+            title="Hansen Solubility Parameters Visualization",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+        
+        # Affichage du graphique
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Options d'export
+        with st.expander("📤 Export Options", expanded=False):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Export des données
+                csv = df_display.to_csv(index=False)
+                st.download_button(
+                    label="Download selected data as CSV",
+                    data=csv,
+                    file_name="hsp_selected_data.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            
+            with col2:
+                # Export du graphique
+                img_bytes = fig.to_image(format="png")
+                st.download_button(
+                    label="Download graph as PNG",
+                    data=img_bytes,
+                    file_name="hsp_visualization.png",
+                    mime="image/png",
+                    use_container_width=True
+                )
     
     except Exception as e:
-        st.error(f"Error accessing HSP database: {str(e)}")
+        st.error(f"Error loading HSP database: {str(e)}")
 
 # Module Ternary Plot Diagram
 def show_ternary_plot_page():
