@@ -1167,7 +1167,7 @@ def show_hansen_page():
             st.error(f"Error processing file: {str(e)}")
 
 def show_hspdb_page():
-    """Page HSP Database Explorer - Version avec sélection de composés"""
+    """Page HSP Database Explorer - Version corrigée"""
     st.title("🧪 HSP Database Explorer")
     st.markdown("Explore and visualize Hansen Solubility Parameters (δD, δP, δH) from the database.")
     
@@ -1182,29 +1182,29 @@ def show_hspdb_page():
             return
         
         # Nettoyage des données
-        df = df.dropna(subset=required_cols)
+        df = df.dropna(subset=required_cols).copy()
         
         # Section de sélection des composés
         st.subheader("🔍 Compound Selection")
         
         # Filtre par source si la colonne existe
-        source_filter = None
         if 'Source' in df.columns:
-            sources = df['Source'].unique()
-            source_filter = st.multiselect(
+            sources = sorted(df['Source'].dropna().unique())
+            selected_sources = st.multiselect(
                 "Filter by data source (optional)",
                 options=sources,
                 default=sources,
                 key="source_filter"
             )
-            df = df[df['Source'].isin(source_filter)] if source_filter else df
+            if selected_sources:
+                df = df[df['Source'].isin(selected_sources)]
         
         # Sélection des composés
-        compounds = df['Compound'].unique()
+        compounds = sorted(df['Compound'].unique())
         selected_compounds = st.multiselect(
             "Select compounds to display",
             options=compounds,
-            default=compounds[:min(10, len(compounds))],  # Affiche max 10 par défaut
+            default=compounds[:min(5, len(compounds))],  # Affiche max 5 par défaut
             key="compound_selector"
         )
         
@@ -1212,7 +1212,7 @@ def show_hspdb_page():
             st.warning("Please select at least one compound")
             return
             
-        df_display = df[df['Compound'].isin(selected_compounds)]
+        df_display = df[df['Compound'].isin(selected_compounds)].copy()
         
         # Affichage des données sélectionnées
         st.subheader("📊 Selected HSP Data")
@@ -1237,7 +1237,7 @@ def show_hspdb_page():
         names = df_display['Compound'].values
         
         # Gestion des couleurs
-        if 'Source' in df.columns:
+        if 'Source' in df_display.columns:
             sources = df_display['Source'].values
             color_map = {
                 'Experimental': '#1f77b4',  # Bleu
@@ -1245,45 +1245,49 @@ def show_hspdb_page():
                 'Calculated': '#ff7f0e',   # Orange
                 'Literature': '#d62728'    # Rouge
             }
+            colors = [color_map.get(s, '#7f7f7f') for s in sources]
         else:
             # Si pas de source, on utilise une couleur par composé
             colors = px.colors.qualitative.Plotly
             color_map = {name: colors[i % len(colors)] for i, name in enumerate(selected_compounds)}
-            sources = None
+            colors = [color_map[name] for name in df_display['Compound']]
         
         # Création du graphique 3D
         fig = go.Figure()
         
         # Ajout des points
         for i in range(len(x)):
-            if sources:
-                color = color_map.get(sources[i], 'gray')
-                name = f"{names[i]} ({sources[i]})"
-            else:
-                color = color_map.get(names[i], 'gray')
-                name = names[i]
+            hover_text = f"""
+            <b>{names[i]}</b><br>
+            δD: {x[i]:.2f} MPa<sup>1/2</sup><br>
+            δP: {y[i]:.2f} MPa<sup>1/2</sup><br>
+            δH: {z[i]:.2f} MPa<sup>1/2</sup><br>
+            """
+            
+            if 'Source' in df_display.columns:
+                hover_text += f"Source: {df_display['Source'].iloc[i]}<br>"
+            if 'R0' in df_display.columns:
+                hover_text += f"R0: {df_display['R0'].iloc[i]:.2f}"
             
             fig.add_trace(go.Scatter3d(
                 x=[x[i]], y=[y[i]], z=[z[i]],
                 mode='markers',
                 marker=dict(
                     size=10,
-                    color=color,
+                    color=colors[i],
                     opacity=0.9,
                     line=dict(width=1, color='DarkSlateGrey')
                 ),
-                name=name,
+                name=names[i],
                 hoverinfo='text',
-                hovertext=f"""
-                <b>{names[i]}</b><br>
-                δD: {x[i]:.2f} MPa<sup>1/2</sup><br>
-                δP: {y[i]:.2f} MPa<sup>1/2</sup><br>
-                δH: {z[i]:.2f} MPa<sup>1/2</sup><br>
-                {f"Source: {sources[i]}" if sources else ""}
-                {f"<br>R0: {df_display['R0'].values[i]:.2f}" if 'R0' in df.columns else ""}
-                """,
+                hovertext=hover_text,
                 showlegend=True
             ))
+        
+        # Configuration des axes
+        x_range = [max(0, df['δD'].min()-2), df['δD'].max()+2]
+        y_range = [max(0, df['δP'].min()-2), df['δP'].max()+2]
+        z_range = [max(0, df['δH'].min()-2), df['δH'].max()+2]
         
         # Mise en forme du graphique
         fig.update_layout(
@@ -1294,17 +1298,17 @@ def show_hspdb_page():
                 xaxis=dict(
                     gridcolor='lightgray', 
                     backgroundcolor='rgba(0,0,0,0.02)',
-                    range=[df['δD'].min()-2, df['δD'].max()+2]
+                    range=x_range
                 ),
                 yaxis=dict(
                     gridcolor='lightgray', 
                     backgroundcolor='rgba(0,0,0,0.02)',
-                    range=[df['δP'].min()-2, df['δP'].max()+2]
+                    range=y_range
                 ),
                 zaxis=dict(
                     gridcolor='lightgray', 
                     backgroundcolor='rgba(0,0,0,0.02)',
-                    range=[df['δH'].min()-2, df['δH'].max()+2]
+                    range=z_range
                 ),
             ),
             margin=dict(l=0, r=0, b=0, t=40),
