@@ -1167,7 +1167,7 @@ def show_hansen_page():
             st.error(f"Error processing file: {str(e)}")
 
 def show_hspdb_page():
-    """Page HSP Database Explorer avec calcul de distance"""
+    """Page HSP Database Explorer - Version sans dépendance Chrome"""
     st.title("🧪 HSP Database Explorer")
     st.markdown("Explore and visualize Hansen Solubility Parameters (δD, δP, δH) from the database.")
     
@@ -1188,9 +1188,9 @@ def show_hspdb_page():
         st.subheader("🔍 Compound Selection")
         compounds = sorted(df['Compound'].unique())
         selected_compounds = st.multiselect(
-            "Select compounds to display (select 2 to calculate distance)",
+            "Select compounds to display",
             options=compounds,
-            default=compounds[:min(2, len(compounds))],  # Par défaut 2 composés
+            default=compounds[:min(5, len(compounds))],
             key="compound_selector"
         )
         
@@ -1204,32 +1204,9 @@ def show_hspdb_page():
         st.subheader("📊 Selected HSP Data")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
         
-        # Calcul de distance si exactement 2 composés sont sélectionnés
-        distance = None
-        if len(selected_compounds) == 2:
-            comp1 = df_display.iloc[0]
-            comp2 = df_display.iloc[1]
-            distance = np.sqrt(
-                (comp1['δD']-comp2['δD'])**2 + 
-                (comp1['δP']-comp2['δP'])**2 + 
-                (comp1['δH']-comp2['δH'])**2
-            )
-            
-            st.subheader("📏 Distance Calculation")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric(f"{comp1['Compound']} (δD,δP,δH)", 
-                         f"{comp1['δD']:.1f}, {comp1['δP']:.1f}, {comp1['δH']:.1f}")
-            with col2:
-                st.metric("Distance", f"{distance:.2f} MPa¹ᐟ²")
-            with col3:
-                st.metric(f"{comp2['Compound']} (δD,δP,δH)", 
-                         f"{comp2['δD']:.1f}, {comp2['δP']:.1f}, {comp2['δH']:.1f}")
-        
         # Création du graphique
         fig = go.Figure()
         
-        # Ajout des points
         for _, row in df_display.iterrows():
             fig.add_trace(go.Scatter3d(
                 x=[row['δD']], y=[row['δP']], z=[row['δH']],
@@ -1246,34 +1223,18 @@ def show_hspdb_page():
                 """
             ))
         
-        # Ajout de la ligne de connexion si 2 composés
-        if len(selected_compounds) == 2:
-            comp1 = df_display.iloc[0]
-            comp2 = df_display.iloc[1]
-            fig.add_trace(go.Scatter3d(
-                x=[comp1['δD'], comp2['δD']],
-                y=[comp1['δP'], comp2['δP']],
-                z=[comp1['δH'], comp2['δH']],
-                mode='lines',
-                line=dict(color='red', width=4, dash='dash'),
-                name=f"Distance: {distance:.2f}",
-                hoverinfo='none'
-            ))
-        
         fig.update_layout(
             scene=dict(
-                xaxis_title='δD (Dispersion) [MPa¹ᐟ²]',
-                yaxis_title='δP (Polar) [MPa¹ᐟ²]',
-                zaxis_title='δH (Hydrogen Bonding) [MPa¹ᐟ²]',
-                aspectmode='cube'
+                xaxis_title='δD (Dispersion)',
+                yaxis_title='δP (Polar)',
+                zaxis_title='δH (Hydrogen Bonding)'
             ),
-            height=800,
-            margin=dict(l=0, r=0, b=0, t=40)
+            height=800
         )
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # Export HTML
+        # Export HTML seulement (ne nécessite pas Chrome)
         with st.expander("📤 Export Options"):
             html = fig.to_html()
             st.download_button(
@@ -1285,7 +1246,6 @@ def show_hspdb_page():
     
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
-
 # Module Ternary Plot Diagram
 def show_ternary_plot_page():
     st.header("📐 Ternary Plot Diagram")
