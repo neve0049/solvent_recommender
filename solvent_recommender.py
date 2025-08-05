@@ -276,79 +276,7 @@ def show_kddb_page():
             st.session_state.search_triggered = False
             st.rerun()
 
-def show_kddb_editor():
-    st.title("KD Database Editor")
-    st.info("✏️ You can add new entries to the KD database here. Existing data cannot be modified.")
-    
-    try:
-        # Charger toutes les feuilles du fichier
-        all_sheets = pd.read_excel(EXCEL_PATH, sheet_name=None)
-        sheet_names = list(all_sheets.keys())
-        
-        # Sélection de la feuille à compléter
-        selected_sheet = st.selectbox(
-            "Select a compound sheet to add data",
-            sheet_names,
-            key="kddb_sheet_select"
-        )
-        
-        # Afficher les données existantes (en lecture seule)
-        st.subheader(f"Existing data for {selected_sheet} (read-only)")
-        st.dataframe(all_sheets[selected_sheet], use_container_width=True)
-        
-        # Formulaire pour ajouter de nouvelles entrées
-        st.subheader("Add new entry")
-        
-        with st.form(key="add_entry_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                new_log_kd = st.number_input("Log KD", format="%.2f")
-                new_system = st.text_input("System")
-                
-            with col2:
-                new_composition = st.text_input("Composition")
-                new_log_p_pubchem = st.number_input("Log P (Pubchem)", format="%.2f", value=0.0)
-                new_log_p_cosmo = st.number_input("Log P (COSMO-RS)", format="%.2f", value=0.0)
-            
-            submitted = st.form_submit_button("Add new entry")
-            
-            if submitted:
-                # Vérifier les champs obligatoires
-                if not new_system or not new_composition:
-                    st.error("System and Composition are required fields!")
-                else:
-                    # Créer une nouvelle ligne
-                    new_row = {
-                        'Log KD': new_log_kd,
-                        'System': new_system,
-                        'Composition': new_composition,
-                        'Log P (Pubchem)': new_log_p_pubchem,
-                        'Log P (COSMO-RS)': new_log_p_cosmo
-                    }
-                    
-                    # Ajouter la nouvelle ligne à la feuille sélectionnée
-                    all_sheets[selected_sheet] = pd.concat(
-                        [all_sheets[selected_sheet], pd.DataFrame([new_row])],
-                        ignore_index=True
-                    )
-                    
-                    # Réécrire TOUT le fichier Excel avec les modifications
-                    with pd.ExcelWriter(
-                        EXCEL_PATH,
-                        engine='openpyxl',
-                        mode='w'  # Mode écriture (écrase le fichier existant)
-                    ) as writer:
-                        for sheet_name, df in all_sheets.items():
-                            df.to_excel(writer, sheet_name=sheet_name, index=False)
-                    
-                    st.success("New entry added successfully to the Excel file!")
-                    st.rerun()
-    
-    except PermissionError:
-        st.error("Error: Could not write to the Excel file. Please make sure the file is not open in another program.")
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
+EMAIL_PASSWORD = "votre_mot_de_passe_hotmail"
         
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
@@ -1956,3 +1884,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
