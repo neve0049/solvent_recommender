@@ -182,6 +182,66 @@ def show_home_page():
     - **HSP 3D Plot** : Plot your own HSP data by uploading your excel file.
     """)
 
+    st.markdown("""
+    Application developped by Nève Clément (PhD student, Université de Reims Champagne Ardenne, CNRS, ICMR UMR 7312, Reims, France; Division of Pharmacognosy and Natural Products Chemistry, Department of Pharmacy, National and Kapodistrian University of Athens, Panepistimioupoli Zografou, Athens, Greece)
+    """)
+
+# Section des logos
+    st.subheader("Supported By")
+    
+    # CSS personnalisé pour l'affichage des images
+    st.markdown("""
+    <style>
+    .logo-row {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        flex-wrap: wrap;
+        margin: 20px 0;
+    }
+    .logo-img {
+        height: 60px;
+        width: auto;
+        transition: transform 0.3s;
+    }
+    .logo-img:hover {
+        transform: scale(1.1);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Liste de vos images (remplacez par vos fichiers)
+    logo_files = [
+        "pictures/logo1.png",
+        "pictures/logo2.png",
+        "pictures/logo3.png",
+        "pictures/logo4.png"
+        "pictures/logo5.png"
+        "pictures/logo6.png"
+    ]
+    
+    # Vérification et chargement des images
+    valid_logos = []
+    for logo in logo_files:
+        if os.path.exists(logo):
+            valid_logos.append(logo)
+        else:
+            st.warning(f"Fichier introuvable : {logo}")
+    
+    # Construction du HTML
+    if valid_logos:
+        logos_html = '<div class="logo-row">'
+        for logo in valid_logos:
+            # Encodage base64 pour fiabilité
+            with open(logo, "rb") as img_file:
+                logo_b64 = base64.b64encode(img_file.read()).decode()
+            logos_html += f'<img src="data:image/png;base64,{logo_b64}" class="logo-img">'
+        logos_html += '</div>'
+        
+        st.markdown(logos_html, unsafe_allow_html=True)
+    else:
+        st.error("Aucun logo disponible")
+        
 # Modules KD Database
 def show_kddb_page():
     """Page KD Database Explorer - Version avec sélection par ligne"""
@@ -1986,6 +2046,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
