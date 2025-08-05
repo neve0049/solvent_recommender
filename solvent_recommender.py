@@ -215,9 +215,9 @@ def show_home_page():
         "pictures/logo1.png",
         "pictures/logo2.png",
         "pictures/logo3.png",
-        "pictures/logo4.png"
-        "pictures/logo5.png"
-        "pictures/logo6.png"
+        "pictures/logo4.png",
+        "pictures/logo5.png",
+        "pictures/logo6.png",
     ]
     
     # Vérification et chargement des images
@@ -2046,6 +2046,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
