@@ -136,7 +136,7 @@ def show_home_page():
     You can also upload your excel files from COSMOthermX and your list of HSP to visualize them.
     """)
     
-    # CSS personnalisé pour le centrage + vérification du fichier
+    # CSS pour le centrage
     st.markdown("""
     <style>
     .img-container {
@@ -151,20 +151,24 @@ def show_home_page():
     }
     </style>
     """, unsafe_allow_html=True)
-    
-    # Chemin vérifié + fallback
+
+    # Chemin de l'image (adaptez selon votre structure)
     image_path = os.path.join(os.path.dirname(__file__), "CPCDISKGCPC.png")
     
-    if os.path.exists(image_path):
-        st.markdown(f"""
-        <div class="img-container">
-            <img src="data:image/png;base64,{base64.b64encode(open(image_path,'rb').read().decode()}">
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.error("Image not found at: " + image_path)
-        # Fallback optionnel avec image externe
-        # st.image("https://via.placeholder.com/600x400?text=Quaterco+Logo")
+    try:
+        # Encodage base64 avec toutes les parenthèses correctement fermées
+        image_base64 = base64.b64encode(open(image_path,'rb').read()).decode('utf-8')
+        
+        st.markdown(
+            f'<div class="img-container">'
+            f'<img src="data:image/png;base64,{image_base64}">'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+    except Exception as e:
+        st.error(f"Image loading failed: {str(e)}")
+        # Solution de repli (optionnelle)
+        st.image("https://via.placeholder.com/600x400?text=Quaterco+Logo", width=300)
     
     st.markdown("""
     ### Main features :
@@ -1979,6 +1983,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
