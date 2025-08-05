@@ -1911,16 +1911,16 @@ def main():
             st.session_state.current_page = "kddb_editor"
         if st.button("📊 Ternary Phase Diagrams"):
             st.session_state.current_page = "dbdt"
+        if st.button("📐 Ternary Plot Diagram"):
+            st.session_state.current_page = "ternary_plot"
         if st.button("🧊 Quaternary Phase Diagrams"):
             st.session_state.current_page = "dbdq"
+        if st.button("🧊 Quaternary Plot Diagram"):
+            st.session_state.current_page = "quaternary_plot"
         if st.button("🧪 Hansen Solubility Parameters"):
             st.session_state.current_page = "hansen"
         if st.button("🧪 HSP Database"):
             st.session_state.current_page = "hspdb"
-        if st.button("📐 Ternary Plot Diagram"):
-            st.session_state.current_page = "ternary_plot"
-        if st.button("🧊 Quaternary Plot Diagram"):
-            st.session_state.current_page = "quaternary_plot"
     
     # Router vers la page active
     try:
@@ -1932,16 +1932,17 @@ def main():
             show_kddb_editor()
         elif st.session_state.current_page == "dbdt":
             show_dbdt_page()
+        elif st.session_state.current_page == "ternary_plot":
+            show_ternary_plot_page()
         elif st.session_state.current_page == "dbdq":
             show_dbdq_page()
+        elif st.session_state.current_page == "quaternary_plot":
+            show_quaternary_plot_page()
         elif st.session_state.current_page == "hansen":
             show_hansen_page()
         elif st.session_state.current_page == "hspdb":
             show_hspdb_page()
-        elif st.session_state.current_page == "ternary_plot":
-            show_ternary_plot_page()
-        elif st.session_state.current_page == "quaternary_plot":
-            show_quaternary_plot_page()
+
     except Exception as e:
         st.error(f"Une erreur est survenue: {str(e)}")
         st.session_state.current_page = "home"
@@ -1949,6 +1950,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
