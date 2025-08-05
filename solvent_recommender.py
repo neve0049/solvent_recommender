@@ -279,80 +279,63 @@ def show_kddb_page():
 
 def show_kddb_editor():
     st.title("✏️ Soumission de données KD")
-    st.markdown("""
-    <style>
-    div[data-testid="stForm"] { 
-        background-color: #f8f9fa;
-        padding: 20px; 
-        border-radius: 10px;
-        border: 1px solid #eee;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Chemin du fichier de sauvegarde
-    SUBMISSIONS_FILE = "data/kd_submissions.csv"
     
-    with st.form(key="kd_submission_form"):
-        # Section 1 : Informations obligatoires
-        st.subheader("🧪 Données requises")
-        col1, col2 = st.columns(2)
-        with col1:
-            compound = st.text_input("Nom du composé*")
-        with col2:
-            log_kd = st.number_input("Log KD*", format="%.2f", step=0.01)
-        
-        system = st.text_input("Système de solvants* (ex: Hexane/Eau/MeOH 3:2:1)")
-        
-        # Section 2 : Informations optionnelles
-        st.subheader("📝 Informations complémentaires")
-        user_name = st.text_input("Votre nom")
-        user_email = st.text_input("Votre email")
-        comments = st.text_area("Commentaires ou remarques")
-        
-        submitted = st.form_submit_button("Soumettre les données")
+    # Initialisation de l'état de session
+    if 'submitted' not in st.session_state:
+        st.session_state.submitted = False
+    
+    # Afficher le message de succès si déjà soumis
+    if st.session_state.submitted:
+        st.success("✅ Données enregistrées avec succès!")
+        if st.button("Soumettre une nouvelle entrée"):
+            st.session_state.submitted = False
+            st.rerun()
+        return
+    
+    # Chemin du fichier (adaptez-le selon votre structure)
+    SUBMISSIONS_FILE = "data/submissions.csv"
+    os.makedirs("data", exist_ok=True)  # Crée le dossier si inexistant
 
-    # Traitement après soumission
+    with st.form(key="kd_form"):
+        # Vos champs de formulaire
+        compound = st.text_input("Nom du composé*")
+        log_kd = st.number_input("Log KD*", format="%.2f")
+        system = st.text_input("Système de solvants*")
+        
+        submitted = st.form_submit_button("Soumettre")
+
     if submitted:
         if not all([compound, log_kd, system]):
-            st.error("Veuillez remplir les champs obligatoires (*)")
+            st.error("Veuillez remplir tous les champs obligatoires (*)")
         else:
-            # Création de la nouvelle entrée
+            # Préparation des données
             new_entry = {
                 "timestamp": datetime.now().isoformat(),
-                "compound": compound.strip(),
-                "log_kd": float(log_kd),
-                "system": system.strip(),
-                "user_name": user_name.strip() if user_name else None,
-                "user_email": user_email.strip() if user_email else None,
-                "comments": comments.strip() if comments else None
+                "compound": compound,
+                "log_kd": log_kd,
+                "system": system
             }
             
             # Conversion en DataFrame
-            new_df = pd.DataFrame([new_entry])
+            new_data = pd.DataFrame([new_entry])
             
             try:
-                # Essai de lecture du fichier existant
-                existing_df = pd.read_csv(SUBMISSIONS_FILE)
-                updated_df = pd.concat([existing_df, new_df], ignore_index=True)
-            except FileNotFoundError:
-                # Création du fichier si inexistant
-                updated_df = new_df
-            
-            # Sauvegarde
-            updated_df.to_csv(SUBMISSIONS_FILE, index=False)
-            
-            # Feedback utilisateur
-            st.success("""
-            ✅ Vos données ont été enregistrées avec succès !
-            
-            Merci pour votre contribution à la base de données Quaterco.
-            """)
-            st.balloons()
-            
-            # Affichage des données soumises (optionnel)
-            with st.expander("Voir les données enregistrées"):
-                st.dataframe(new_df, hide_index=True)
+                # Essaye de lire les données existantes
+                if os.path.exists(SUBMISSIONS_FILE):
+                    existing_data = pd.read_csv(SUBMISSIONS_FILE)
+                    updated_data = pd.concat([existing_data, new_data])
+                else:
+                    updated_data = new_data
+                
+                # Sauvegarde
+                updated_data.to_csv(SUBMISSIONS_FILE, index=False)
+                
+                # Met à jour l'état de session
+                st.session_state.submitted = True
+                st.rerun()  # Recharge pour afficher le message de succès
+                
+            except Exception as e:
+                st.error(f"Erreur lors de l'enregistrement : {str(e)}")
         
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
@@ -1960,5 +1943,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
