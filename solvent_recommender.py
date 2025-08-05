@@ -277,131 +277,166 @@ def show_kddb_page():
             st.rerun()
 
 def show_kddb_editor():
-    st.title("KD Database Editor")
-    st.info("✏️ Use this form to submit new entries to the KD database. All submissions will be reviewed by our team.")
-    
-    # Configuration SMTP (à stocker dans les secrets Streamlit)
-    SMTP_CONFIG = {
-        'server': 'smtp.office365.com',  # Serveur SMTP d'Outlook/Hotmail
-        'port': 587,
-        'username': 'quaterco@hotmail.com',
-        'password': st.secrets["EMAIL_PASSWORD"],  # À définir dans les secrets Streamlit
-        'from_email': 'quaterco@hotmail.com',
-        'to_email': 'quaterco@hotmail.com'
-    }
+    # Configuration initiale
+    st.title("✏️ KD Database Editor")
+    st.markdown("""
+    <style>
+    .stForm { background-color: #f0f2f6; padding: 20px; border-radius: 10px; }
+    .stAlert { border-radius: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-    def send_email(subject, body):
-        """Fonction pour envoyer un email via SMTP"""
+    # Initialisation des variables de session
+    if 'form_submitted' not in st.session_state:
+        st.session_state.form_submitted = False
+        st.session_state.email_sent = False
+
+    # Si le formulaire a déjà été soumis avec succès
+    if st.session_state.form_submitted and st.session_state.email_sent:
+        st.success("""
+        🎉 Thank you for your submission!
+        
+        Your entry has been successfully sent to our team for review.
+        We've also sent a confirmation copy to your email address.
+        """)
+        
+        if st.button("➕ Submit another entry"):
+            st.session_state.form_submitted = False
+            st.session_state.email_sent = False
+            st.rerun()
+        return
+
+    # Fonction d'envoi d'email (version sécurisée)
+    def send_email_via_smtp(subject, body, recipient):
         import smtplib
         from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-
+        from email.header import Header
+        
         try:
-            # Création du message
-            msg = MIMEMultipart()
-            msg['From'] = SMTP_CONFIG['from_email']
-            msg['To'] = SMTP_CONFIG['to_email']
-            msg['Subject'] = subject
-
-            # Corps du message
-            msg.attach(MIMEText(body, 'plain'))
-
-            # Connexion au serveur SMTP
-            with smtplib.SMTP(SMTP_CONFIG['server'], SMTP_CONFIG['port']) as server:
-                server.starttls()  # Chiffrement TLS
-                server.login(SMTP_CONFIG['username'], SMTP_CONFIG['password'])
-                server.send_message(msg)
+            # Configuration SMTP (à mettre dans vos secrets Streamlit)
+            smtp_server = "smtp.office365.com"
+            smtp_port = 587
+            sender_email = "quaterco@hotmail.com"
+            password = st.secrets["SMTP_PASSWORD"]  # À configurer dans Streamlit Secrets
             
+            # Création du message
+            msg = MIMEText(body, 'plain', 'utf-8')
+            msg['Subject'] = Header(subject, 'utf-8')
+            msg['From'] = sender_email
+            msg['To'] = recipient
+            
+            # Envoi sécurisé
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, password)
+                server.sendmail(sender_email, recipient, msg.as_string())
             return True
         except Exception as e:
-            st.error(f"Erreur d'envoi d'email: {str(e)}")
+            st.error(f"🔴 Email sending failed: {str(e)}")
             return False
 
-    # Formulaire pour ajouter de nouvelles entrées
-    with st.form(key="add_entry_form"):
-        st.subheader("Compound Information")
-        compound_name = st.text_input("Compound Name*", help="Name of the compound to add")
-        log_kd = st.number_input("Log KD*", format="%.2f", help="Distribution coefficient value")
+    # Formulaire principal
+    with st.form(key="kd_entry_form", clear_on_submit=True):
+        st.subheader("🧪 Compound Information")
+        compound_name = st.text_input("Compound name*", help="Scientific name of the compound")
+        log_kd = st.number_input("Log KD value*", min_value=-5.0, max_value=20.0, format="%.2f")
         
-        st.subheader("System Information")
-        system_name = st.text_input("System Name*", help="Name of the biphasic solvent system")
-        composition = st.text_input("Composition*", help="Composition details (e.g. 'Hexane/EtOAc/MeOH/Water 1/1/1/1')")
+        st.subheader("🧴 Solvent System")
+        system_name = st.text_input("System name*", help="e.g. 'Hexane/Ethyl acetate/Methanol/Water'")
+        composition = st.text_input("Composition*", help="e.g. '1/1/1/1 v/v/v/v'")
         
-        st.subheader("Additional Data (optional)")
-        log_p_pubchem = st.number_input("Log P (Pubchem)", format="%.2f", value=0.0)
-        log_p_cosmo = st.number_input("Log P (COSMO-RS)", format="%.2f", value=0.0)
-        reference = st.text_input("Reference (DOI or citation)", help="Scientific reference for this data")
-        submitter_email = st.text_input("Your Email*", help="For follow-up questions")
-        comments = st.text_area("Additional Comments", help="Any additional information")
+        st.subheader("📚 Additional Data")
+        log_p_pubchem = st.number_input("Log P (PubChem)", value=None, format="%.2f")
+        log_p_cosmo = st.number_input("Log P (COSMO-RS)", value=None, format="%.2f")
+        reference = st.text_input("Reference (DOI or citation)")
         
-        submitted = st.form_submit_button("Submit Entry")
+        st.subheader("✉️ Your Contact")
+        submitter_email = st.text_input("Your email*", help="For confirmation and follow-up")
+        comments = st.text_area("Additional comments")
         
-        if submitted:
-            # Vérifier les champs obligatoires
-            if not compound_name or not system_name or not composition or not submitter_email:
-                st.error("Please fill all required fields (marked with *)")
-            else:
-                # Préparer le contenu de l'email
-                email_subject = f"New KD Entry: {compound_name} in {system_name}"
+        submit_button = st.form_submit_button("📤 Submit Entry")
+
+    # Traitement après soumission
+    if submit_button:
+        # Validation des champs obligatoires
+        required_fields = {
+            "Compound name": compound_name,
+            "Log KD value": log_kd,
+            "System name": system_name,
+            "Composition": composition,
+            "Your email": submitter_email
+        }
+        
+        missing_fields = [name for name, value in required_fields.items() if not value]
+        
+        if missing_fields:
+            st.error(f"❌ Please fill all required fields: {', '.join(missing_fields)}")
+        else:
+            # Construction du message email
+            email_subject = f"[Quaterco] New KD Entry: {compound_name}"
+            
+            email_body = f"""
+            New KD Database Submission
+            
+            === Compound ===
+            Name: {compound_name}
+            Log KD: {log_kd}
+            Log P (PubChem): {log_p_pubchem if log_p_pubchem else 'Not provided'}
+            Log P (COSMO-RS): {log_p_cosmo if log_p_cosmo else 'Not provided'}
+            
+            === Solvent System ===
+            System: {system_name}
+            Composition: {composition}
+            
+            === Reference ===
+            {reference if reference else 'Not provided'}
+            
+            === Submitter ===
+            Email: {submitter_email}
+            Submission Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+            
+            === Comments ===
+            {comments if comments else 'None provided'}
+            """
+            
+            # Envoi à l'équipe Quaterco
+            team_sent = send_email_via_smtp(
+                email_subject,
+                email_body,
+                "quaterco@hotmail.com"
+            )
+            
+            # Envoi de confirmation au soumissionnaire
+            if team_sent:
+                confirmation_body = f"""
+                Dear Contributor,
                 
-                email_body = f"""
-                New KD Database Entry Submission:
+                Thank you for submitting to the Quaterco KD Database!
                 
-                === Compound Information ===
-                Name: {compound_name}
-                Log KD: {log_kd}
-                Log P (Pubchem): {log_p_pubchem}
-                Log P (COSMO-RS): {log_p_cosmo}
+                We've received your entry:
+                - Compound: {compound_name}
+                - System: {system_name}
+                - Submitted on: {pd.Timestamp.now().strftime('%Y-%m-%d')}
                 
-                === System Information ===
-                System Name: {system_name}
-                Composition: {composition}
+                Our team will review your submission. You'll receive another email once it's processed.
                 
-                === Reference ===
-                {reference if reference else 'Not provided'}
+                For reference, here's your complete submission:
+                {email_body}
                 
-                === Submitter Information ===
-                Email: {submitter_email}
-                Submission Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
-                
-                === Additional Comments ===
-                {comments if comments else 'None'}
-                
-                ---
-                This submission was sent via Quaterco App.
+                Best regards,
+                The Quaterco Team
                 """
                 
-                # Envoyer l'email
-                if send_email(email_subject, email_body):
-                    st.success("""
-                    Thank you for your submission! 
-                    Your entry has been successfully sent to our team for review.
-                    """)
-                    
-                    # Optionnel: Envoyer une copie au soumissionnaire
-                    user_copy_body = f"""
-                    Dear Contributor,
-                    
-                    Thank you for your submission to the Quaterco KD Database.
-                    
-                    Here's a copy of the information you submitted:
-                    
-                    {email_body}
-                    
-                    We will review your submission and contact you if we need any additional information.
-                    
-                    Best regards,
-                    The Quaterco Team
-                    """
-                    
-                    send_email(f"Your KD Submission: {compound_name}", user_copy_body)
-                    
-                    # Réinitialiser le formulaire
-                    st.session_state.add_entry_form = {}
-                else:
-                    st.error("""
-                    Failed to send your submission. 
-                    Please try again later or contact us directly at quaterco@hotmail.com
+                user_sent = send_email_via_smtp(
+                    "Your Quaterco KD Submission Confirmation",
+                    confirmation_body,
+                    submitter_email
+                )
+                
+                if user_sent:
+                    st.session_state.form_submitted = True
+                    st.session_state.email_sent = True
+                    st.rerun()
                     """)
         
 def show_dbdt_page():
@@ -2010,4 +2045,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
