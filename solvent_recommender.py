@@ -11,6 +11,7 @@ import PyPDF2
 import os
 import re
 from datetime import datetime
+import urllib.parse
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -279,64 +280,96 @@ def show_kddb_page():
 
 def show_kddb_editor():
     st.title("✏️ Soumission de données KD")
-    
-    # Initialisation de l'état de session
-    if 'submitted' not in st.session_state:
-        st.session_state.submitted = False
-    
-    # Afficher le message de succès si déjà soumis
-    if st.session_state.submitted:
-        st.success("✅ Données enregistrées avec succès!")
-        if st.button("Soumettre une nouvelle entrée"):
-            st.session_state.submitted = False
-            st.rerun()
-        return
-    
-    # Chemin du fichier (adaptez-le selon votre structure)
-    SUBMISSIONS_FILE = "data/submissions.csv"
-    os.makedirs("data", exist_ok=True)  # Crée le dossier si inexistant
+    st.markdown("""
+    <style>
+    .embed-container {
+        position: relative;
+        padding-bottom: 80%;
+        height: 0;
+        max-width: 100%;
+        margin-bottom: 2rem;
+    }
+    .embed-container iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    with st.form(key="kd_form"):
-        # Vos champs de formulaire
-        compound = st.text_input("Nom du composé*")
-        log_kd = st.number_input("Log KD*", format="%.2f")
+    # Section de pré-remplissage
+    with st.expander("🔍 Pré-remplir le formulaire", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            compound = st.text_input("Nom du composé*")
+        with col2:
+            log_kd = st.number_input("Log KD*", format="%.2f", step=0.01)
+        
         system = st.text_input("Système de solvants*")
+        user_email = st.text_input("Votre email")
         
-        submitted = st.form_submit_button("Soumettre")
+        # IDs des champs Google Form (à remplacer par vos vrais IDs)
+        FIELD_IDS = {
+            "compound": "entry.2005620554",
+            "log_kd": "entry.1065046570",
+            "system": "entry.1166974658",
+            "email": "entry.1045781291"
+        }
 
-    if submitted:
-        if not all([compound, log_kd, system]):
-            st.error("Veuillez remplir tous les champs obligatoires (*)")
-        else:
-            # Préparation des données
-            new_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "compound": compound,
-                "log_kd": log_kd,
-                "system": system
-            }
-            
-            # Conversion en DataFrame
-            new_data = pd.DataFrame([new_entry])
-            
-            try:
-                # Essaye de lire les données existantes
-                if os.path.exists(SUBMISSIONS_FILE):
-                    existing_data = pd.read_csv(SUBMISSIONS_FILE)
-                    updated_data = pd.concat([existing_data, new_data])
-                else:
-                    updated_data = new_data
-                
-                # Sauvegarde
-                updated_data.to_csv(SUBMISSIONS_FILE, index=False)
-                
-                # Met à jour l'état de session
-                st.session_state.submitted = True
-                st.rerun()  # Recharge pour afficher le message de succès
-                
-            except Exception as e:
-                st.error(f"Erreur lors de l'enregistrement : {str(e)}")
-        
+        if st.button("Pré-remplir le formulaire"):
+            if not all([compound, log_kd, system]):
+                st.error("Veuillez remplir les champs obligatoires (*)")
+            else:
+                params = {
+                    FIELD_IDS["compound"]: compound,
+                    FIELD_IDS["log_kd"]: str(log_kd),
+                    FIELD_IDS["system"]: system,
+                    FIELD_IDS["email"]: user_email if user_email else ""
+                }
+                query_string = urllib.parse.urlencode(params)
+                st.session_state.form_url = f"https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform?{query_string}&embedded=true"
+                st.rerun()
+
+    # URL du formulaire (par défaut ou pré-remplie)
+    form_url = st.session_state.get("form_url", "https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform?embedded=true")
+
+    # Intégration du formulaire
+    st.markdown(f"""
+    <div class="embed-container">
+        <iframe src="{form_url}" 
+                frameborder="0" marginheight="0" marginwidth="0">
+            Chargement...
+        </iframe>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Lien alternatif
+    st.markdown("""
+    <div style="text-align: center; margin-top: 1rem;">
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform" 
+           target="_blank" style="text-decoration: none;">
+            <button style="background-color: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px;">
+                ↗️ Ouvrir le formulaire dans un nouvel onglet
+            </button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Instructions
+    st.info("""
+    ℹ️ Après soumission, vos données seront automatiquement enregistrées dans notre base de données.
+    Vous recevrez une copie par email si vous avez fourni une adresse valide.
+    """)
+    
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
@@ -1943,6 +1976,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
