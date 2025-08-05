@@ -1906,7 +1906,7 @@ def main():
             st.session_state.current_page = "home"
         if st.button("🔍 KD Database Explorer"):
             st.session_state.current_page = "kddb"
-        if st.button("✏️ KD Database Editor"):
+        if st.button("✏️ Submit your KD Data"):
             st.session_state.current_page = "kddb_editor"
         if st.button("📊 Ternary Phase Diagrams"):
             st.session_state.current_page = "dbdt"
@@ -1949,6 +1949,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
