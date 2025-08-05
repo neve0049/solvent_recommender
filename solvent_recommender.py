@@ -10,6 +10,7 @@ import base64
 import PyPDF2
 import os
 import re
+from datetime import datetime
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -277,166 +278,81 @@ def show_kddb_page():
             st.rerun()
 
 def show_kddb_editor():
-    # Configuration initiale
-    st.title("✏️ KD Database Editor")
+    st.title("✏️ Soumission de données KD")
     st.markdown("""
     <style>
-    .stForm { background-color: #f0f2f6; padding: 20px; border-radius: 10px; }
-    .stAlert { border-radius: 10px; }
+    div[data-testid="stForm"] { 
+        background-color: #f8f9fa;
+        padding: 20px; 
+        border-radius: 10px;
+        border: 1px solid #eee;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    # Initialisation des variables de session
-    if 'form_submitted' not in st.session_state:
-        st.session_state.form_submitted = False
-        st.session_state.email_sent = False
-
-    # Si le formulaire a déjà été soumis avec succès
-    if st.session_state.form_submitted and st.session_state.email_sent:
-        st.success("""
-        🎉 Thank you for your submission!
+    # Chemin du fichier de sauvegarde
+    SUBMISSIONS_FILE = "kd_submissions.csv"
+    
+    with st.form(key="kd_submission_form"):
+        # Section 1 : Informations obligatoires
+        st.subheader("🧪 Données requises")
+        col1, col2 = st.columns(2)
+        with col1:
+            compound = st.text_input("Nom du composé*")
+        with col2:
+            log_kd = st.number_input("Log KD*", format="%.2f", step=0.01)
         
-        Your entry has been successfully sent to our team for review.
-        We've also sent a confirmation copy to your email address.
-        """)
+        system = st.text_input("Système de solvants* (ex: Hexane/Eau/MeOH 3:2:1)")
         
-        if st.button("➕ Submit another entry"):
-            st.session_state.form_submitted = False
-            st.session_state.email_sent = False
-            st.rerun()
-        return
-
-    # Fonction d'envoi d'email (version sécurisée)
-    def send_email_via_smtp(subject, body, recipient):
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.header import Header
+        # Section 2 : Informations optionnelles
+        st.subheader("📝 Informations complémentaires")
+        user_name = st.text_input("Votre nom")
+        user_email = st.text_input("Votre email")
+        comments = st.text_area("Commentaires ou remarques")
         
-        try:
-            # Configuration SMTP (à mettre dans vos secrets Streamlit)
-            smtp_server = "smtp.office365.com"
-            smtp_port = 587
-            sender_email = "quaterco@hotmail.com"
-            password = st.secrets["SMTP_PASSWORD"]  # À configurer dans Streamlit Secrets
-            
-            # Création du message
-            msg = MIMEText(body, 'plain', 'utf-8')
-            msg['Subject'] = Header(subject, 'utf-8')
-            msg['From'] = sender_email
-            msg['To'] = recipient
-            
-            # Envoi sécurisé
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(sender_email, password)
-                server.sendmail(sender_email, recipient, msg.as_string())
-            return True
-        except Exception as e:
-            st.error(f"🔴 Email sending failed: {str(e)}")
-            return False
-
-    # Formulaire principal
-    with st.form(key="kd_entry_form", clear_on_submit=True):
-        st.subheader("🧪 Compound Information")
-        compound_name = st.text_input("Compound name*", help="Scientific name of the compound")
-        log_kd = st.number_input("Log KD value*", min_value=-5.0, max_value=20.0, format="%.2f")
-        
-        st.subheader("🧴 Solvent System")
-        system_name = st.text_input("System name*", help="e.g. 'Hexane/Ethyl acetate/Methanol/Water'")
-        composition = st.text_input("Composition*", help="e.g. '1/1/1/1 v/v/v/v'")
-        
-        st.subheader("📚 Additional Data")
-        log_p_pubchem = st.number_input("Log P (PubChem)", value=None, format="%.2f")
-        log_p_cosmo = st.number_input("Log P (COSMO-RS)", value=None, format="%.2f")
-        reference = st.text_input("Reference (DOI or citation)")
-        
-        st.subheader("✉️ Your Contact")
-        submitter_email = st.text_input("Your email*", help="For confirmation and follow-up")
-        comments = st.text_area("Additional comments")
-        
-        submit_button = st.form_submit_button("📤 Submit Entry")
+        submitted = st.form_submit_button("Soumettre les données")
 
     # Traitement après soumission
-    if submit_button:
-        # Validation des champs obligatoires
-        required_fields = {
-            "Compound name": compound_name,
-            "Log KD value": log_kd,
-            "System name": system_name,
-            "Composition": composition,
-            "Your email": submitter_email
-        }
-        
-        missing_fields = [name for name, value in required_fields.items() if not value]
-        
-        if missing_fields:
-            st.error(f"❌ Please fill all required fields: {', '.join(missing_fields)}")
+    if submitted:
+        if not all([compound, log_kd, system]):
+            st.error("Veuillez remplir les champs obligatoires (*)")
         else:
-            # Construction du message email
-            email_subject = f"[Quaterco] New KD Entry: {compound_name}"
+            # Création de la nouvelle entrée
+            new_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "compound": compound.strip(),
+                "log_kd": float(log_kd),
+                "system": system.strip(),
+                "user_name": user_name.strip() if user_name else None,
+                "user_email": user_email.strip() if user_email else None,
+                "comments": comments.strip() if comments else None
+            }
             
-            email_body = f"""
-            New KD Database Submission
+            # Conversion en DataFrame
+            new_df = pd.DataFrame([new_entry])
             
-            === Compound ===
-            Name: {compound_name}
-            Log KD: {log_kd}
-            Log P (PubChem): {log_p_pubchem if log_p_pubchem else 'Not provided'}
-            Log P (COSMO-RS): {log_p_cosmo if log_p_cosmo else 'Not provided'}
+            try:
+                # Essai de lecture du fichier existant
+                existing_df = pd.read_csv(SUBMISSIONS_FILE)
+                updated_df = pd.concat([existing_df, new_df], ignore_index=True)
+            except FileNotFoundError:
+                # Création du fichier si inexistant
+                updated_df = new_df
             
-            === Solvent System ===
-            System: {system_name}
-            Composition: {composition}
+            # Sauvegarde
+            updated_df.to_csv(SUBMISSIONS_FILE, index=False)
             
-            === Reference ===
-            {reference if reference else 'Not provided'}
+            # Feedback utilisateur
+            st.success("""
+            ✅ Vos données ont été enregistrées avec succès !
             
-            === Submitter ===
-            Email: {submitter_email}
-            Submission Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+            Merci pour votre contribution à la base de données Quaterco.
+            """)
+            st.balloons()
             
-            === Comments ===
-            {comments if comments else 'None provided'}
-            """
-            
-            # Envoi à l'équipe Quaterco
-            team_sent = send_email_via_smtp(
-                email_subject,
-                email_body,
-                "quaterco@hotmail.com"
-            )
-            
-            # Envoi de confirmation au soumissionnaire
-            if team_sent:
-                confirmation_body = f"""
-                Dear Contributor,
-                
-                Thank you for submitting to the Quaterco KD Database!
-                
-                We've received your entry:
-                - Compound: {compound_name}
-                - System: {system_name}
-                - Submitted on: {pd.Timestamp.now().strftime('%Y-%m-%d')}
-                
-                Our team will review your submission. You'll receive another email once it's processed.
-                
-                For reference, here's your complete submission:
-                {email_body}
-                
-                Best regards,
-                The Quaterco Team
-                """
-                
-                user_sent = send_email_via_smtp(
-                    "Your Quaterco KD Submission Confirmation",
-                    confirmation_body,
-                    submitter_email
-                )
-                
-                if user_sent:
-                    st.session_state.form_submitted = True
-                    st.session_state.email_sent = True
-                    st.rerun()
+            # Affichage des données soumises (optionnel)
+            with st.expander("Voir les données enregistrées"):
+                st.dataframe(new_df, hide_index=True)
         
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
@@ -2044,3 +1960,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
