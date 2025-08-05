@@ -136,26 +136,12 @@ def show_home_page():
     You can also upload your excel files from COSMOthermX and your list of HSP to visualize them.
     """)
     
-    # Centrage de l'image avec CSS
-    st.markdown("""
-    <style>
-    .centered-image {
-        display: flex;
-        justify-content: center;
-        margin: 20px 0;
-    }
-    .centered-image img {
-        max-width: 80%;
-        height: auto;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-    </style>
-    
-    <div class="centered-image">
-        <img src="CPCDISKGCPC.png">
-    </div>
-    """, unsafe_allow_html=True)
+    # Solution fiable - Chemin relatif depuis le dossier principal
+    try:
+        image_path = os.path.join(os.path.dirname(__file__), "CPCDISKGCPC.png")
+        st.image(image_path, width=600)  # Ajustez la largeur selon besoin
+    except FileNotFoundError:
+        st.error("Image not found. Please check the file path.")
     
     st.markdown("""
     ### Main features :
@@ -1970,6 +1956,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
