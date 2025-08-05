@@ -136,12 +136,35 @@ def show_home_page():
     You can also upload your excel files from COSMOthermX and your list of HSP to visualize them.
     """)
     
-    # Solution fiable - Chemin relatif depuis le dossier principal
-    try:
-        image_path = os.path.join(os.path.dirname(__file__), "CPCDISKGCPC.png")
-        st.image(image_path, width=600)  # Ajustez la largeur selon besoin
-    except FileNotFoundError:
-        st.error("Image not found. Please check the file path.")
+    # CSS personnalisé pour le centrage + vérification du fichier
+    st.markdown("""
+    <style>
+    .img-container {
+        display: flex;
+        justify-content: center;
+        padding: 20px 0;
+    }
+    .img-container img {
+        max-width: min(80%, 600px);
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Chemin vérifié + fallback
+    image_path = os.path.join(os.path.dirname(__file__), "CPCDISKGCPC.png")
+    
+    if os.path.exists(image_path):
+        st.markdown(f"""
+        <div class="img-container">
+            <img src="data:image/png;base64,{base64.b64encode(open(image_path,'rb').read().decode()}">
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.error("Image not found at: " + image_path)
+        # Fallback optionnel avec image externe
+        # st.image("https://via.placeholder.com/600x400?text=Quaterco+Logo")
     
     st.markdown("""
     ### Main features :
@@ -1956,6 +1979,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
