@@ -291,7 +291,7 @@ def show_kddb_editor():
     """, unsafe_allow_html=True)
 
     # Chemin du fichier de sauvegarde
-    SUBMISSIONS_FILE = "kd_submissions.csv"
+    SUBMISSIONS_FILE = "data/kd_submissions.csv"
     
     with st.form(key="kd_submission_form"):
         # Section 1 : Informations obligatoires
@@ -1960,4 +1960,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
