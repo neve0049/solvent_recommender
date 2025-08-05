@@ -278,77 +278,131 @@ def show_kddb_page():
 
 def show_kddb_editor():
     st.title("KD Database Editor")
-    st.info("✏️ You can add new entries to the KD database here. Existing data cannot be modified.")
+    st.info("✏️ Use this form to submit new entries to the KD database. All submissions will be reviewed by our team.")
     
-    try:
-        # Charger toutes les feuilles du fichier
-        all_sheets = pd.read_excel(EXCEL_PATH, sheet_name=None)
-        sheet_names = list(all_sheets.keys())
-        
-        # Sélection de la feuille à compléter
-        selected_sheet = st.selectbox(
-            "Select a compound sheet to add data",
-            sheet_names,
-            key="kddb_sheet_select"
-        )
-        
-        # Afficher les données existantes (en lecture seule)
-        st.subheader(f"Existing data for {selected_sheet} (read-only)")
-        st.dataframe(all_sheets[selected_sheet], use_container_width=True)
-        
-        # Formulaire pour ajouter de nouvelles entrées
-        st.subheader("Add new entry")
-        
-        with st.form(key="add_entry_form"):
-            col1, col2 = st.columns(2)
+    # Configuration SMTP (à stocker dans les secrets Streamlit)
+    SMTP_CONFIG = {
+        'server': 'smtp.office365.com',  # Serveur SMTP d'Outlook/Hotmail
+        'port': 587,
+        'username': 'quaterco@hotmail.com',
+        'password': st.secrets["EMAIL_PASSWORD"],  # À définir dans les secrets Streamlit
+        'from_email': 'quaterco@hotmail.com',
+        'to_email': 'quaterco@hotmail.com'
+    }
+
+    def send_email(subject, body):
+        """Fonction pour envoyer un email via SMTP"""
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        try:
+            # Création du message
+            msg = MIMEMultipart()
+            msg['From'] = SMTP_CONFIG['from_email']
+            msg['To'] = SMTP_CONFIG['to_email']
+            msg['Subject'] = subject
+
+            # Corps du message
+            msg.attach(MIMEText(body, 'plain'))
+
+            # Connexion au serveur SMTP
+            with smtplib.SMTP(SMTP_CONFIG['server'], SMTP_CONFIG['port']) as server:
+                server.starttls()  # Chiffrement TLS
+                server.login(SMTP_CONFIG['username'], SMTP_CONFIG['password'])
+                server.send_message(msg)
             
-            with col1:
-                new_log_kd = st.number_input("Log KD", format="%.2f")
-                new_system = st.text_input("System")
+            return True
+        except Exception as e:
+            st.error(f"Erreur d'envoi d'email: {str(e)}")
+            return False
+
+    # Formulaire pour ajouter de nouvelles entrées
+    with st.form(key="add_entry_form"):
+        st.subheader("Compound Information")
+        compound_name = st.text_input("Compound Name*", help="Name of the compound to add")
+        log_kd = st.number_input("Log KD*", format="%.2f", help="Distribution coefficient value")
+        
+        st.subheader("System Information")
+        system_name = st.text_input("System Name*", help="Name of the biphasic solvent system")
+        composition = st.text_input("Composition*", help="Composition details (e.g. 'Hexane/EtOAc/MeOH/Water 1/1/1/1')")
+        
+        st.subheader("Additional Data (optional)")
+        log_p_pubchem = st.number_input("Log P (Pubchem)", format="%.2f", value=0.0)
+        log_p_cosmo = st.number_input("Log P (COSMO-RS)", format="%.2f", value=0.0)
+        reference = st.text_input("Reference (DOI or citation)", help="Scientific reference for this data")
+        submitter_email = st.text_input("Your Email*", help="For follow-up questions")
+        comments = st.text_area("Additional Comments", help="Any additional information")
+        
+        submitted = st.form_submit_button("Submit Entry")
+        
+        if submitted:
+            # Vérifier les champs obligatoires
+            if not compound_name or not system_name or not composition or not submitter_email:
+                st.error("Please fill all required fields (marked with *)")
+            else:
+                # Préparer le contenu de l'email
+                email_subject = f"New KD Entry: {compound_name} in {system_name}"
                 
-            with col2:
-                new_composition = st.text_input("Composition")
-                new_log_p_pubchem = st.number_input("Log P (Pubchem)", format="%.2f", value=0.0)
-                new_log_p_cosmo = st.number_input("Log P (COSMO-RS)", format="%.2f", value=0.0)
-            
-            submitted = st.form_submit_button("Add new entry")
-            
-            if submitted:
-                # Vérifier les champs obligatoires
-                if not new_system or not new_composition:
-                    st.error("System and Composition are required fields!")
+                email_body = f"""
+                New KD Database Entry Submission:
+                
+                === Compound Information ===
+                Name: {compound_name}
+                Log KD: {log_kd}
+                Log P (Pubchem): {log_p_pubchem}
+                Log P (COSMO-RS): {log_p_cosmo}
+                
+                === System Information ===
+                System Name: {system_name}
+                Composition: {composition}
+                
+                === Reference ===
+                {reference if reference else 'Not provided'}
+                
+                === Submitter Information ===
+                Email: {submitter_email}
+                Submission Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+                
+                === Additional Comments ===
+                {comments if comments else 'None'}
+                
+                ---
+                This submission was sent via Quaterco App.
+                """
+                
+                # Envoyer l'email
+                if send_email(email_subject, email_body):
+                    st.success("""
+                    Thank you for your submission! 
+                    Your entry has been successfully sent to our team for review.
+                    """)
+                    
+                    # Optionnel: Envoyer une copie au soumissionnaire
+                    user_copy_body = f"""
+                    Dear Contributor,
+                    
+                    Thank you for your submission to the Quaterco KD Database.
+                    
+                    Here's a copy of the information you submitted:
+                    
+                    {email_body}
+                    
+                    We will review your submission and contact you if we need any additional information.
+                    
+                    Best regards,
+                    The Quaterco Team
+                    """
+                    
+                    send_email(f"Your KD Submission: {compound_name}", user_copy_body)
+                    
+                    # Réinitialiser le formulaire
+                    st.session_state.add_entry_form = {}
                 else:
-                    # Créer une nouvelle ligne
-                    new_row = {
-                        'Log KD': new_log_kd,
-                        'System': new_system,
-                        'Composition': new_composition,
-                        'Log P (Pubchem)': new_log_p_pubchem,
-                        'Log P (COSMO-RS)': new_log_p_cosmo
-                    }
-                    
-                    # Ajouter la nouvelle ligne à la feuille sélectionnée
-                    all_sheets[selected_sheet] = pd.concat(
-                        [all_sheets[selected_sheet], pd.DataFrame([new_row])],
-                        ignore_index=True
-                    )
-                    
-                    # Réécrire TOUT le fichier Excel avec les modifications
-                    with pd.ExcelWriter(
-                        EXCEL_PATH,
-                        engine='openpyxl',
-                        mode='w'  # Mode écriture (écrase le fichier existant)
-                    ) as writer:
-                        for sheet_name, df in all_sheets.items():
-                            df.to_excel(writer, sheet_name=sheet_name, index=False)
-                    
-                    st.success("New entry added successfully to the Excel file!")
-                    st.rerun()
-    
-    except PermissionError:
-        st.error("Error: Could not write to the Excel file. Please make sure the file is not open in another program.")
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
+                    st.error("""
+                    Failed to send your submission. 
+                    Please try again later or contact us directly at quaterco@hotmail.com
+                    """)
         
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
@@ -1956,3 +2010,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
