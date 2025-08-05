@@ -437,7 +437,6 @@ def show_kddb_editor():
                     st.session_state.form_submitted = True
                     st.session_state.email_sent = True
                     st.rerun()
-                    """)
         
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
@@ -2045,5 +2044,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
