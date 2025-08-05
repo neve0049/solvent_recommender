@@ -312,7 +312,7 @@ def show_kddb_editor():
             <li>Click the button below to open the submission form</li>
             <li>Fill in all required fields</li>
             <li>Submit the form</li>
-            <li>Your data will be automatically added to our database</li>
+            <li>Your data will be later added to our database</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
@@ -330,7 +330,6 @@ def show_kddb_editor():
     st.markdown("""
     ### ℹ️ Important Notes:
     - All submissions are reviewed manually
-    - You'll receive a confirmation email if you provided your address
     - Invalid submissions will be removed
     - For bulk submissions, please contact us at quaterco@hotmail.com
     """)
@@ -1950,6 +1949,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
