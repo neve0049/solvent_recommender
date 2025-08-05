@@ -279,96 +279,69 @@ def show_kddb_page():
             st.rerun()
 
 def show_kddb_editor():
-    st.title("✏️ Soumission de données KD")
+    st.title("✏️ Submit New KD Data")
+    
     st.markdown("""
     <style>
-    .embed-container {
-        position: relative;
-        padding-bottom: 80%;
-        height: 0;
-        max-width: 100%;
-        margin-bottom: 2rem;
+    .info-box {
+        background-color: #f0f9ff;
+        border-left: 5px solid #3b82f6;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 4px;
     }
-    .embed-container iframe {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        border: 1px solid #eee;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .stButton>button {
+    .form-link {
+        display: inline-block;
         background-color: #4CAF50;
         color: white;
+        padding: 12px 24px;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: bold;
+        margin: 1rem 0;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # Section de pré-remplissage
-    with st.expander("🔍 Pré-remplir le formulaire", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            compound = st.text_input("Nom du composé*")
-        with col2:
-            log_kd = st.number_input("Log KD*", format="%.2f", step=0.01)
-        
-        system = st.text_input("Système de solvants*")
-        user_email = st.text_input("Votre email")
-        
-        # IDs des champs Google Form (à remplacer par vos vrais IDs)
-        FIELD_IDS = {
-            "compound": "entry.2005620554",
-            "log_kd": "entry.1065046570",
-            "system": "entry.1166974658",
-            "email": "entry.1045781291"
-        }
-
-        if st.button("Pré-remplir le formulaire"):
-            if not all([compound, log_kd, system]):
-                st.error("Veuillez remplir les champs obligatoires (*)")
-            else:
-                params = {
-                    FIELD_IDS["compound"]: compound,
-                    FIELD_IDS["log_kd"]: str(log_kd),
-                    FIELD_IDS["system"]: system,
-                    FIELD_IDS["email"]: user_email if user_email else ""
-                }
-                query_string = urllib.parse.urlencode(params)
-                st.session_state.form_url = f"https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform?{query_string}&embedded=true"
-                st.rerun()
-
-    # URL du formulaire (par défaut ou pré-remplie)
-    form_url = st.session_state.get("form_url", "https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform?embedded=true")
-
-    # Intégration du formulaire
-    st.markdown(f"""
-    <div class="embed-container">
-        <iframe src="{form_url}" 
-                frameborder="0" marginheight="0" marginwidth="0">
-            Chargement...
-        </iframe>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Lien alternatif
+    # Main instructions
     st.markdown("""
-    <div style="text-align: center; margin-top: 1rem;">
-        <a href="https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform" 
-           target="_blank" style="text-decoration: none;">
-            <button style="background-color: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px;">
-                ↗️ Ouvrir le formulaire dans un nouvel onglet
-            </button>
-        </a>
+    <div class="info-box">
+        <h3>📝 How to submit data:</h3>
+        <ol>
+            <li>Click the button below to open the submission form</li>
+            <li>Fill in all required fields</li>
+            <li>Submit the form</li>
+            <li>Your data will be automatically added to our database</li>
+        </ol>
     </div>
     """, unsafe_allow_html=True)
 
-    # Instructions
-    st.info("""
-    ℹ️ Après soumission, vos données seront automatiquement enregistrées dans notre base de données.
-    Vous recevrez une copie par email si vous avez fourni une adresse valide.
+    # Direct form link button
+    st.markdown(
+        '<a href="https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform" '
+        'target="_blank" class="form-link">'
+        '✏️ OPEN SUBMISSION FORM'
+        '</a>',
+        unsafe_allow_html=True
+    )
+
+    # Additional information
+    st.markdown("""
+    ### ℹ️ Important Notes:
+    - All submissions are reviewed manually
+    - You'll receive a confirmation email if you provided your address
+    - Invalid submissions will be removed
+    - For bulk submissions, please contact us at quaterco@hotmail.com
     """)
+
+    # Embed option (uncomment if needed)
+    # st.markdown("""
+    # <iframe src="https://docs.google.com/forms/d/e/1FAIpQLSeZlhPtRcWrrasYABvfXJxTMgnFnhwtdAvGxHoLAFzM5o3gdw/viewform?embedded=true" 
+    #         width="100%" height="800" frameborder="0" marginheight="0" marginwidth="0">
+    #     Loading...
+    # </iframe>
+    # """, unsafe_allow_html=True)
     
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
@@ -1976,6 +1949,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
