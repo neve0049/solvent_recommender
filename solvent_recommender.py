@@ -12,6 +12,8 @@ import os
 import re
 from datetime import datetime
 import urllib.parse
+from rdkit import Chem
+from rdkit.Chem import Draw
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -123,6 +125,16 @@ def get_file_download_link(file_data, filename, text):
     b64 = base64.b64encode(file_data).decode()
     href = f'<a href="data:file/txt;base64,{b64}" download="{filename}">{text}</a>'
     return href
+
+def smiles_to_image(smiles: str):
+    try:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is not None:
+            return Draw.MolToImage(mol, size=(300, 300))
+        else:
+            return None
+    except Exception:
+        return None
 
 # =============================================
 # Pages de l'application
@@ -286,7 +298,21 @@ def show_kddb_page():
             # Chargement des données de la feuille sélectionnée
             try:
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
-                
+
+                # Afficher la structure moléculaire si la colonne SMILES est présente
+                if "SMILES" in df.columns:
+                    # On suppose que la colonne SMILES contient la même valeur pour toute la sheet
+                    smiles_value = df["SMILES"].dropna().iloc[0] if not df["SMILES"].dropna().empty else None
+                    if smiles_value:
+                        st.subheader("Molecular Structure")
+                        img = smiles_to_image(smiles_value)
+                        if img:
+                            st.image(img, caption=f"SMILES: {smiles_value}")
+                        else:
+                            st.warning("Impossible de générer la structure depuis le SMILES.")
+                    else:
+                         st.info("Pas de valeur SMILES disponible pour cette molécule.")
+
                 # Colonnes requises et optionnelles
                 required_cols = ['Log KD', 'System', 'Composition']
                 additional_cols = ['Source']
@@ -2046,6 +2072,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
