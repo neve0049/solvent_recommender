@@ -258,7 +258,11 @@ def show_home_page():
 def show_kddb_page():
     """Page KD Database Explorer - Version avec sélection par ligne"""
     st.title("KD Database Explorer")
-    
+
+    st.markdown("""
+    Welcome to Quaterco KD Database Explorer! All KD are calculated for KD = C[organic]/C[aqueous] with same volume for both phases.
+    """)
+
     # Chargement des noms de feuilles
     sheet_names = load_excel_sheets(EXCEL_PATH)
     if not sheet_names:
@@ -2072,6 +2076,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
