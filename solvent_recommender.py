@@ -1107,7 +1107,8 @@ def show_hansen_page():
     with st.expander("ℹ️ Instructions"):
         st.write("""
         Upload the excel file containing your data. The file must contain the following columns:
-        δD, δP, δH, Compounds, Type (by default the color are 0 = Red = petro-sourced or unsafe compound, 1 = Green = bio-sourced compound, 2 = Blue = simulated HSP from COSMOQuick or other prediction software), CAS, R0.
+        δD, δP, δH, Compounds, Type (you can use text like "petro-sourced", "bio-sourced", "simulated", etc.), CAS, R0.
+        Each unique text in the Type column will be assigned a unique color automatically.
         """)
     
     uploaded_file = st.file_uploader("Upload your Excel file containing your data", type=["xlsx"])
@@ -1125,13 +1126,24 @@ def show_hansen_page():
                 y = data['δP'].astype(float)
                 z = data['δH'].astype(float)
                 names = data['Compounds']
-                types = data['Type']
+                types = data['Type'].astype(str)  # Convertir en string pour être sûr
                 CAS = data['CAS']
                 radii = data['R0'].astype(float)
                 
-                # Couleurs et légendes
-                colors = ['red', 'green', 'blue']
-                type_labels = ['Non-Green', 'Green', 'Simulated']
+                # Génération automatique des couleurs pour chaque type unique
+                unique_types = types.unique()
+                
+                # Palette de couleurs étendue
+                color_palette = [
+                    'red', 'green', 'blue', 'orange', 'purple', 'brown', 'pink', 'gray', 
+                    'olive', 'cyan', 'magenta', 'yellow', 'teal', 'coral', 'lavender',
+                    'maroon', 'navy', 'lime', 'gold', 'silver'
+                ]
+                
+                # Répéter la palette si nécessaire
+                colors_dict = {}
+                for i, type_name in enumerate(unique_types):
+                    colors_dict[type_name] = color_palette[i % len(color_palette)]
                 
                 # Bouton ON/OFF pour les noms des composés
                 show_names = st.toggle("Display compound names", value=False)
@@ -1146,7 +1158,7 @@ def show_hansen_page():
                         mode='markers' + ('+text' if show_names else ''),
                         marker=dict(
                             size=6,
-                            color=colors[types[i]],
+                            color=colors_dict[types[i]],
                             opacity=0.8
                         ),
                         text=names[i] if show_names else None,
@@ -1155,6 +1167,7 @@ def show_hansen_page():
                         hoverinfo='text',
                         hovertext=f"""
                         <b>{names[i]}</b><br>
+                        Type: {types[i]}<br>
                         CAS: {CAS[i]}<br>
                         δD: {x[i]:.2f}<br>
                         δP: {y[i]:.2f}<br>
@@ -1185,18 +1198,38 @@ def show_hansen_page():
                     )
                 )
                 
-                # Ajout de la légende
-                for i, label in enumerate(type_labels):
+                # Ajout de la légende avec les types et leurs couleurs
+                for type_name, color in colors_dict.items():
                     fig.add_trace(go.Scatter3d(
                         x=[None], y=[None], z=[None],
                         mode='markers',
-                        marker=dict(size=10, color=colors[i]),
-                        name=label,
+                        marker=dict(size=10, color=color),
+                        name=type_name,
                         showlegend=True
                     ))
                 
                 # Affichage du graphique
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Affichage de la correspondance des couleurs
+                st.subheader("🎨 Color Legend")
+                col_legend1, col_legend2 = st.columns(2)
+                
+                with col_legend1:
+                    for i, (type_name, color) in enumerate(colors_dict.items()):
+                        if i < len(colors_dict) // 2 + len(colors_dict) % 2:
+                            st.markdown(
+                                f"<span style='color:{color}; font-weight:bold'>■</span> {type_name}",
+                                unsafe_allow_html=True
+                            )
+                
+                with col_legend2:
+                    for i, (type_name, color) in enumerate(colors_dict.items()):
+                        if i >= len(colors_dict) // 2 + len(colors_dict) % 2:
+                            st.markdown(
+                                f"<span style='color:{color}; font-weight:bold'>■</span> {type_name}",
+                                unsafe_allow_html=True
+                            )
                 
                 # Section d'analyse interactive
                 st.subheader("🔍 Interactive Analysis")
@@ -1215,6 +1248,7 @@ def show_hansen_page():
                         st.success(f"Selected compound: {compound_name}")
                         
                         # Affichage des informations
+                        st.write(f"**Type:** {types[idx]}")
                         st.write(f"**CAS:** {CAS[idx]}")
                         st.write(f"**Coordinates:** δD={x[idx]:.2f}, δP={y[idx]:.2f}, δH={z[idx]:.2f}")
                         st.write(f"**Hansen Sphere Radius (R0):** {radii[idx]:.2f}")
@@ -2076,6 +2110,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
